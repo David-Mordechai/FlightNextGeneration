@@ -1,7 +1,7 @@
 ﻿using System.Text.Json;
 using System.Text.Json.Serialization;
 
-namespace Bff.Service.Services;
+namespace McpServer.FlightControl;
 
 public class GeocodingService
 {
