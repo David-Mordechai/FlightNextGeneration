@@ -14,7 +14,7 @@ var geminiKey = config["GoogleGeminiKey"];
 const string ollamaModel = "llama3.2";
 var ollamaUrl = new Uri("http://localhost:11434");
 
-var chatClient = BuildChatClient(ChatType.GoogleGemini);
+var chatClient = BuildChatClient(ChatType.Ollama);
 
 var mcpClient = await McpClient.CreateAsync(
     new HttpClientTransport(new HttpClientTransportOptions
@@ -30,22 +30,23 @@ foreach (var tool in tools)
     Console.WriteLine($"{tool}");
 }
 
-List<ChatMessage> messages = [];
 while (true)
 {
     Console.Write("Prompt: ");
-    messages.Add(new ChatMessage(ChatRole.User, Console.ReadLine()));
+    var message = new ChatMessage(ChatRole.User, Console.ReadLine());
 
-    List<ChatResponseUpdate> updates = [];
-    await foreach (var update in chatClient
-                       .GetStreamingResponseAsync(messages, new ChatOptions { Tools = [.. tools] }))
+    await foreach (var update in chatClient.GetStreamingResponseAsync(message, new ChatOptions
+                       {
+                           Tools = [.. tools]
+                       }))
     {
-        Console.Write(update);
-        updates.Add(update);
+        if (update.Role != ChatRole.Tool) continue;
+        
+        if (update.Contents.FirstOrDefault() is FunctionResultContent text)
+        {
+            Console.WriteLine(text.Result);
+        }
     }
-    Console.WriteLine();
-
-    messages.AddMessages(updates);
 }
 
 IChatClient BuildChatClient(ChatType chatType)

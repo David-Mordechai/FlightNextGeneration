@@ -1,6 +1,6 @@
-﻿using System.ComponentModel;
+﻿using ModelContextProtocol.Server;
+using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
-using ModelContextProtocol.Server;
 
 namespace McpServer.FlightControl;
 
@@ -9,74 +9,53 @@ public class Tools(ILogger<Tools> logger, CommunicationService communicationServ
 {
     [McpServerTool, Description("Navigate the UAV to a specific city or location.")]
     public async Task<string> NavigateTo(
-        [Description("The name of the city or location to fly to (e.g., 'Tel Aviv', 'Haifa')."), Required] string location)
+        [Description("The name of the city or location to fly to (e.g., 'Tel Aviv', 'Haifa')."), Required] 
+        string location)
     {
         try
         {
-            var lowerMsg = location.ToLowerInvariant();
-            if (lowerMsg.Contains("fly to") || lowerMsg.Contains("go to") || lowerMsg.Contains("fly over") || lowerMsg.Contains("over "))
-            {
-                var extractedLocation = Helper.ExtractLocation(lowerMsg);
-                if (string.IsNullOrWhiteSpace(extractedLocation)) return "Location not found";
-                await communicationService.NavigateTo(extractedLocation);
-                logger.LogInformation("Mission updated! Flying to {Location}.", extractedLocation);
-            }
+            //await communicationService.NavigateTo(location);
+            logger.LogInformation("Mission updated! Flying to {Location}.", location);
+            return $"Mission updated! Flying to {location}.";
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Fail to communicate with the client");
-            return $"Error contacting backend: {ex.Message}";
+            return "Fail to communicate with the client";
         }
-
-        return "Location not found";
     }
 
     [McpServerTool, Description("Change the UAV's target speed in knots.")]
-    public async Task<string> ChangeSpeed(string message)
+    public async Task<string> ChangeSpeed(
+        [Description("Target speed in knots (e.g., 150)."), Required]int speed)
     {
         try
         {
-            var lowerMsg = message.ToLowerInvariant();
-            if (lowerMsg.Contains("speed") || lowerMsg.Contains("knots"))
-            {
-                var speed = Helper.ExtractFirstNumber(message);
-                if (speed.HasValue)
-                {
-                    await communicationService.ChangeSpeed(speed.Value);
-                    logger.LogInformation("Acknowledged. Adjusting speed to {Speed} kts.", speed.Value);
-                }
-            }
+            //await communicationService.ChangeSpeed(speed);
+            logger.LogInformation("Acknowledged. Adjusting speed to {Speed} kts.", speed);
+            return $"Acknowledged. Adjusting speed to {speed} kts.";
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Fail to communicate with the client");
-            return $"Error contacting backend: {ex.Message}";
+            return "Fail to communicate with the client";
         }
-
-        return "Invalid speed request.";
     }
 
     [McpServerTool, Description("Change the UAV's target altitude in feet.")]
-    public async Task<string> ChangeAltitude(string message)
+    public async Task<string> ChangeAltitude(
+        [Description("Target altitude in feet (e.g., 5000)."), Required] int altitude)
     {
         try
         {
-            var lowerMsg = message.ToLowerInvariant();
-            if (lowerMsg.Contains("altitude") || lowerMsg.Contains("feet") || lowerMsg.Contains("climb") || lowerMsg.Contains("descend"))
-            {
-                var alt = Helper.ExtractFirstNumber(message);
-                if (alt.HasValue)
-                {
-                    await communicationService.ChangeAltitude(alt.Value);
-                    logger.LogInformation("Acknowledged. Changing altitude to {Altitude} ft.", alt.Value);
-                }
-            }
+            //await communicationService.ChangeAltitude(altitude);
+            logger.LogInformation("Acknowledged. Changing altitude to {Altitude} ft.", altitude);
+            return $"Acknowledged. Changing altitude to {altitude} feet.";
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Fail to communicate with the client");
-            return $"Error contacting backend: {ex.Message}";
+            return "Fail to communicate with the client";
         }
-        return "Invalid altitude request.";
     }
 }
