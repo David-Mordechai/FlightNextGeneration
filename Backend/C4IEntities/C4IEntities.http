@@ -1,0 +1,6 @@
+@C4IEntities_HostAddress = http://localhost:5293
+
+GET {{C4IEntities_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
