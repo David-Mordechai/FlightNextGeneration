@@ -62,20 +62,28 @@ public class AiChatService(ILogger<AiChatService> logger)
         var response = string.Empty;
         var message = new ChatMessage(ChatRole.User, userMessage);
 
-        await foreach (var update in _chatClient.GetStreamingResponseAsync(message, new ChatOptions
-                       {
-                           Tools = [.. _tools]
-                       }))
+        try
         {
-            if (update.Role != ChatRole.Tool) continue;
-
-            if (update.Contents.FirstOrDefault() is FunctionResultContent text)
+            await foreach (var update in _chatClient.GetStreamingResponseAsync(message, new ChatOptions
+                           {
+                               Tools = [.. _tools]
+                           }))
             {
-                response = text.Result?.ToString();
+                if (update.Role != ChatRole.Tool) continue;
+
+                if (update.Contents.FirstOrDefault() is FunctionResultContent text)
+                {
+                    response += text.Result?.ToString();
+                }
             }
         }
+        catch (Exception e)
+        {
+            logger.LogError(e, "Fail to process user message");
+        }
 
-        return response ?? "Fail to process user request";
+
+        return string.IsNullOrEmpty(response) ? "Fail to process user request" : response;
     }
 }
 
