@@ -7,6 +7,7 @@ export function useFlightVisualization(map: any) {
     const markers = ref<Map<string, L.Marker>>(new Map());
     const paths = ref<Map<string, L.Polyline>>(new Map());
     const projectedPaths = ref<Map<string, L.Polyline>>(new Map());
+    const optimalPathLayer = ref<L.Polyline | null>(null);
     const hasCentered = ref(false);
     
     const currentFlightData = ref<{
@@ -19,6 +20,26 @@ export function useFlightVisualization(map: any) {
     } | null>(null);
 
     const initializeFlightListeners = () => {
+        // Listen for Optimal Route
+        signalRService.on('RouteCalculated', (pathData: any[]) => {
+            const currentMap = map.value;
+            if (!currentMap) return;
+
+            if (optimalPathLayer.value) {
+                currentMap.removeLayer(optimalPathLayer.value);
+            }
+
+            // Convert [{lat, lng}, ...] to [[lat, lng], ...]
+            const latLngs = pathData.map(p => [p.lat, p.lng] as [number, number]);
+
+            optimalPathLayer.value = L.polyline(latLngs, {
+                color: '#10B981', // Green-500
+                weight: 4,
+                dashArray: '10, 10',
+                opacity: 0.9
+            }).addTo(currentMap);
+        });
+
         signalRService.onReceiveFlightData((flightId: string, lat: number, lng: number, heading: number, altitude: number, speed: number, targetLat: number, targetLng: number) => {
             const currentMap = map.value;
             if (!currentMap) return;

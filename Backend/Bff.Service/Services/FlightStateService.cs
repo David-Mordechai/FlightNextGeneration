@@ -17,6 +17,10 @@ public class FlightStateService
     public double TargetLng { get; private set; } = 34.643497;
 
     private FlightMode Mode { get; set; } = FlightMode.Orbiting;
+    
+    // Navigation Queues
+    private Queue<(double Lat, double Lng)> Waypoints { get; set; } = new();
+    private List<(double Lat, double Lng)>? PendingPath { get; set; }
 
     private double OrbitRadius { get; set; } = 0.01; // ~1km
     private double OrbitAngle { get; set; }
@@ -28,6 +32,17 @@ public class FlightStateService
     // Current internal telemetry (for smoothing)
     public double CurrentSpeedKts { get; private set; } = 105;
     public double CurrentAltitudeFt { get; private set; } = 4000;
+
+    public object CurrentState => new 
+    { 
+        Lat = CurrentLat, 
+        Lng = CurrentLng,
+        Heading = GetHeading(),
+        Altitude = CurrentAltitudeFt,
+        Speed = CurrentSpeedKts,
+        TargetLat,
+        TargetLng
+    };
 
     // Physics Constants
     private const double BaseStepPerKnotTick = 0.000025 / 105.0; // Normalized step per knot (assuming 20Hz)
@@ -58,10 +73,22 @@ public class FlightStateService
         var dLng = TargetLng - CurrentLng;
         var distance = Math.Sqrt(dLat * dLat + dLng * dLng);
 
-        if (distance < OrbitRadius)
+        // Arrival threshold (approx 100m, 0.001 deg)
+        if (distance < 0.001)
         {
-            Mode = FlightMode.Orbiting;
-            OrbitAngle = Math.Atan2(CurrentLng - TargetLng, CurrentLat - TargetLat);
+            if (Waypoints.Count > 0)
+            {
+                // Proceed to next waypoint
+                var next = Waypoints.Dequeue();
+                TargetLat = next.Lat;
+                TargetLng = next.Lng;
+            }
+            else
+            {
+                // Reached final destination
+                Mode = FlightMode.Orbiting;
+                OrbitAngle = Math.Atan2(CurrentLng - TargetLng, CurrentLat - TargetLat);
+            }
         }
         else
         {
@@ -102,9 +129,38 @@ public class FlightStateService
 
     public void SetNewDestination(double lat, double lng)
     {
+        Waypoints.Clear();
         TargetLat = lat;
         TargetLng = lng;
         Mode = FlightMode.Transiting;
+    }
+
+    public void SetPendingPath(List<(double Lat, double Lng)> path)
+    {
+        PendingPath = path;
+    }
+
+    public bool ExecutePendingPath()
+    {
+        if (PendingPath == null || PendingPath.Count == 0) return false;
+
+        Waypoints.Clear();
+        foreach (var point in PendingPath)
+        {
+            Waypoints.Enqueue(point);
+        }
+
+        // Start flying to the first point immediately
+        if (Waypoints.Count > 0)
+        {
+            var first = Waypoints.Dequeue();
+            TargetLat = first.Lat;
+            TargetLng = first.Lng;
+            Mode = FlightMode.Transiting;
+        }
+
+        PendingPath = null; // Clear after execution
+        return true;
     }
 
     public void SetSpeed(double speedKts)

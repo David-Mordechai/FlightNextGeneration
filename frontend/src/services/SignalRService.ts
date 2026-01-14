@@ -43,6 +43,10 @@ class SignalRService {
     this.connection.on("ReceiveChatMessage", callback);
   }
 
+  public on(eventName: string, callback: (...args: any[]) => void): void {
+    this.connection.on(eventName, callback);
+  }
+
   public async sendChatMessage(user: string, message: string): Promise<void> {
     await this.connection.invoke("ProcessChatMessage", user, message);
   }

@@ -1,15 +1,19 @@
 using Bff.Service.Services;
 using Microsoft.AspNetCore.Mvc;
 
+using Microsoft.AspNetCore.SignalR;
+using Bff.Service.Hubs;
+
 namespace Bff.Service.Controllers;
 
 public record TargetRequest(double Lat, double Lng);
 public record SpeedRequest(double Speed);
 public record AltitudeRequest(double Altitude);
+public record RouteData(object Path, double Distance);
 
 [ApiController]
 [Route("api/mission")]
-public class MissionController(FlightStateService flightState) : ControllerBase
+public class MissionController(FlightStateService flightState, IHubContext<FlightHub> hubContext) : ControllerBase
 {
     [HttpPost("target")]
     public IActionResult SetTarget([FromBody] TargetRequest request)
@@ -40,4 +44,45 @@ public class MissionController(FlightStateService flightState) : ControllerBase
         flightState.SetAltitude(request.Altitude);
         return Ok(new { Message = $"Target altitude set to {request.Altitude} ft" });
     }
+
+    [HttpGet("state")]
+    public IActionResult GetState()
+    {
+        var state = flightState.CurrentState;
+        return Ok(state);
+    }
+
+    [HttpPost("route")]
+    public async Task<IActionResult> BroadcastRoute([FromBody] RouteData route)
+    {
+        await hubContext.Clients.All.SendAsync("RouteCalculated", route.Path);
+        return Ok(new { Message = "Route broadcasted to clients." });
+    }
+
+    [HttpPost("path/preview")]
+    public async Task<IActionResult> PreviewPath([FromBody] List<GeoPoint> path)
+    {
+        // Save to Pending
+        flightState.SetPendingPath(path.Select(p => (p.Lat, p.Lng)).ToList());
+        
+        // Broadcast for Viz
+        await hubContext.Clients.All.SendAsync("RouteCalculated", path);
+        
+        return Ok(new { Message = "Path set as pending preview." });
+    }
+
+    [HttpPost("path/execute")]
+    public IActionResult ExecutePath()
+    {
+        var success = flightState.ExecutePendingPath();
+        if (!success) return BadRequest("No pending path to execute.");
+        
+        return Ok(new { Message = "Executing flight plan." });
+    }
+}
+
+public class GeoPoint
+{
+    public double Lat { get; set; }
+    public double Lng { get; set; }
 }

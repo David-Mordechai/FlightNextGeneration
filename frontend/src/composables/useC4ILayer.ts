@@ -1,4 +1,4 @@
-import { ref, reactive } from 'vue';
+import { ref } from 'vue';
 import L from 'leaflet';
 import { c4iService, type NoFlyZone } from '../services/C4IService';
 
@@ -9,7 +9,7 @@ export function useC4ILayer(map: any) {
     const tempLayer = ref<L.Layer | null>(null);
     let drawControlInstance: any = null;
 
-    const newZoneForm = reactive<{
+    const newZoneForm = ref<{
         id?: string;
         name: string;
         minAltitude: number;
@@ -56,10 +56,12 @@ export function useC4ILayer(map: any) {
             leafletMap.addLayer(layer);
             
             // Reset form
-            newZoneForm.id = undefined;
-            newZoneForm.name = '';
-            newZoneForm.minAltitude = 0;
-            newZoneForm.maxAltitude = 10000;
+            newZoneForm.value = {
+                id: undefined,
+                name: '',
+                minAltitude: 0,
+                maxAltitude: 10000
+            };
             
             showNewZoneModal.value = true;
         });
@@ -157,10 +159,12 @@ export function useC4ILayer(map: any) {
                 if (!isEditingGeometry.value) return; 
 
                 tempLayer.value = sourceLayer; 
-                newZoneForm.id = properties.id;
-                newZoneForm.name = properties.name;
-                newZoneForm.minAltitude = properties.minAltitude;
-                newZoneForm.maxAltitude = properties.maxAltitude;
+                newZoneForm.value = {
+                    id: properties.id,
+                    name: properties.name,
+                    minAltitude: properties.minAltitude,
+                    maxAltitude: properties.maxAltitude
+                };
                 showNewZoneModal.value = true;
             });
 
@@ -169,26 +173,45 @@ export function useC4ILayer(map: any) {
     };
 
     const handleSaveZone = async () => {
-        if (!tempLayer.value) return;
+        if (!tempLayer.value) {
+            console.error("handleSaveZone: tempLayer is null");
+            return;
+        }
 
         const layer = tempLayer.value as any;
-        const geoJson = layer.toGeoJSON();
+        let geoJson;
+        try {
+            geoJson = layer.toGeoJSON();
+        } catch (err) {
+            console.error("Error converting layer to GeoJSON:", err);
+            alert("Error processing shape data.");
+            return;
+        }
+
+        console.log("GeoJSON from layer:", geoJson);
+
         // Handle cases where toGeoJSON returns a Feature or a raw Geometry
         const geometry = geoJson.type === 'Feature' ? geoJson.geometry : geoJson;
 
+        if (!geometry || !geometry.type || !geometry.coordinates) {
+             console.error("Invalid geometry extracted:", geometry);
+             alert("Invalid geometry data.");
+             return;
+        }
+
         const zoneData: NoFlyZone = {
-            id: newZoneForm.id,
-            name: newZoneForm.name,
-            minAltitude: newZoneForm.minAltitude,
-            maxAltitude: newZoneForm.maxAltitude,
+            id: newZoneForm.value.id,
+            name: newZoneForm.value.name,
+            minAltitude: newZoneForm.value.minAltitude,
+            maxAltitude: newZoneForm.value.maxAltitude,
             isActive: true,
             geometry: geometry
         };
 
         try {
-            if (newZoneForm.id) {
+            if (newZoneForm.value.id) {
                 // UPDATE
-                await c4iService.update(newZoneForm.id, zoneData);
+                await c4iService.update(newZoneForm.value.id, zoneData);
                 
                 // Update visuals
                 if (layer.feature && layer.feature.properties) {
@@ -224,8 +247,12 @@ export function useC4ILayer(map: any) {
 
             showNewZoneModal.value = false;
             tempLayer.value = null;
-            newZoneForm.id = undefined;
-            newZoneForm.name = '';
+            newZoneForm.value = {
+                id: undefined,
+                name: '',
+                minAltitude: 0,
+                maxAltitude: 10000
+            };
         } catch (e) {
             console.error("Save Zone Error Details:", e);
             alert('Failed to save zone: ' + (e instanceof Error ? e.message : String(e)));
@@ -233,19 +260,19 @@ export function useC4ILayer(map: any) {
     };
 
     const handleCancelZone = () => {
-        if (!newZoneForm.id && tempLayer.value && map.value) {
+        if (!newZoneForm.value.id && tempLayer.value && map.value) {
             map.value.removeLayer(tempLayer.value as L.Layer);
         }
         showNewZoneModal.value = false;
         tempLayer.value = null;
-        newZoneForm.id = undefined;
+        newZoneForm.value.id = undefined;
     };
 
     const handleDeleteZone = async () => {
-        if (!newZoneForm.id || !tempLayer.value) return;
+        if (!newZoneForm.value.id || !tempLayer.value) return;
         
         try {
-            await c4iService.delete(newZoneForm.id);
+            await c4iService.delete(newZoneForm.value.id);
             drawnItems.removeLayer(tempLayer.value as L.Layer);
             showNewZoneModal.value = false;
             tempLayer.value = null;

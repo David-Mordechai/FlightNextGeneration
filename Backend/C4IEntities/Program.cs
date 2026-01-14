@@ -1,3 +1,8 @@
+using C4IEntities.Services;
+using C4IEntities.Data;
+using Microsoft.EntityFrameworkCore;
+using NetTopologySuite.IO.Converters;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // Add services to the container.
@@ -6,6 +11,8 @@ builder.Services.AddControllers()
     {
         options.JsonSerializerOptions.Converters.Add(new GeoJsonConverterFactory());
     });
+
+builder.Services.AddScoped<PathFindingService>();
 
 builder.Services.AddOpenApi();
 
