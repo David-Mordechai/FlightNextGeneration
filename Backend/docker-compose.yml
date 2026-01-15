@@ -1,0 +1,52 @@
+services:
+  postgis:
+    image: postgis/postgis:16-3.4
+    container_name: flight_postgis
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=${POSTGRES_USER}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD}
+      - POSTGRES_DB=${POSTGRES_DB}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  bff.service:
+    image: ${DOCKER_REGISTRY-}bffservice
+    build:
+      context: .
+      dockerfile: Bff.Service/Dockerfile
+    depends_on:
+      - c4ientities
+      - mcpserver.flightcontrol
+    environment:
+      - OllamaUrl=${OLLAMA_URL}
+      - AIProvider=${AI_PROVIDER}
+      - OllamaModel=${OLLAMA_MODEL}
+      - OpenAIModelName=${OPENAI_MODEL_NAME}
+      - OpenAIKey=${OPENAI_KEY}
+      - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
+      - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
+      - McpServerUrl=http://mcpserver.flightcontrol:8080
+
+  c4ientities:
+    image: ${DOCKER_REGISTRY-}c4ientities
+    build:
+      context: .
+      dockerfile: C4IEntities/Dockerfile
+    depends_on:
+      - postgis
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgis;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+
+  mcpserver.flightcontrol:
+    image: ${DOCKER_REGISTRY-}mcpserverflightcontrol
+    build:
+      context: .
+      dockerfile: McpServer.FlightControl/Dockerfile
+    environment:
+      - BffServiceUrl=http://bff.service:8080
+      - C4IServiceUrl=http://c4ientities:8080
+
+volumes:
+  postgres_data:

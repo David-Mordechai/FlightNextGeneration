@@ -12,13 +12,16 @@ public class Tools
     private readonly ILogger<Tools> _logger;
     private readonly GeocodingService _geocodingService;
     private readonly HttpClient _httpClient;
+    private readonly IConfiguration _configuration;
 
-    public Tools(ILogger<Tools> logger, GeocodingService geocodingService, HttpClient httpClient)
+    public Tools(ILogger<Tools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
     {
         _logger = logger;
         _geocodingService = geocodingService;
         _httpClient = httpClient;
-        _httpClient.BaseAddress = new Uri("http://localhost:5066");
+        _configuration = configuration;
+        var bffUrl = _configuration["BffServiceUrl"] ?? "http://bff.service:8080";
+        _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
     [McpServerTool, Description("Navigate the UAV to a specific city or location.")]
@@ -130,7 +133,8 @@ public class Tools
 
             // 3. Calculate Path (Call C4I Service)
             // Note: In real world, use Service Discovery. Here hardcoded port.
-            using var c4iClient = new HttpClient { BaseAddress = new Uri("http://localhost:5293") };
+            var c4iUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
+            using var c4iClient = new HttpClient { BaseAddress = new Uri(c4iUrl) };
             var routeReq = new
             {
                 StartLat = currentLat,

@@ -2,7 +2,7 @@ import * as signalR from "@microsoft/signalr";
 
 class SignalRService {
   private connection: signalR.HubConnection;
-  private readonly hubUrl: string = "http://localhost:5066/flighthub";
+  private readonly hubUrl: string = "http://localhost:5135/flighthub";
 
   constructor() {
     this.connection = new signalR.HubConnectionBuilder()

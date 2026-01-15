@@ -7,34 +7,56 @@ using OpenAI;
 
 namespace Bff.Service.Services;
 
-public class AiChatService(ILogger<AiChatService> logger)
+public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 {
     private IChatClient? _chatClient;
     private IList<McpClientTool> _tools = [];
 
-    public async void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
+    public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
     {
         try
         {
             _chatClient = BuildChatClient(chatType, model, apiKey, providerUrl);
-
-            var mcpClient = await McpClient.CreateAsync(
-                new HttpClientTransport(new HttpClientTransportOptions
-                {
-                    Endpoint = new Uri("http://localhost:52001")
-                }));
-
-            // List all available tools from the MCP server.
-            logger.LogInformation("Available tools:");
-            _tools = await mcpClient.ListToolsAsync();
-            foreach (var tool in _tools)
-            {
-                logger.LogInformation("Tool available: {Tool}", tool);
-            }
+            var mcpEndpoint = config["McpServerUrl"] ?? "http://mcpserver.flightcontrol:8080";
+            
+            // Start background connection retry loop
+            _ = ConnectToMcpServerAsync(mcpEndpoint);
         }
         catch (Exception e)
         {
-            logger.LogError(e, "Fail to start chat service");
+            logger.LogError(e, "Fail to initialize chat client");
+        }
+    }
+
+    private async Task ConnectToMcpServerAsync(string mcpEndpoint)
+    {
+        while (true)
+        {
+            try
+            {
+                logger.LogInformation("Connecting to MCP Server at {Endpoint}...", mcpEndpoint);
+                var mcpClient = await McpClient.CreateAsync(
+                    new HttpClientTransport(new HttpClientTransportOptions
+                    {
+                        Endpoint = new Uri(mcpEndpoint)
+                    }));
+
+                // List all available tools from the MCP server.
+                logger.LogInformation("Connected to MCP Server. Fetching tools...");
+                _tools = await mcpClient.ListToolsAsync();
+                
+                logger.LogInformation("MCP Tools loaded successfully:");
+                foreach (var tool in _tools)
+                {
+                    logger.LogInformation("Tool available: {Tool}", tool);
+                }
+                return; // Connection successful, exit loop
+            }
+            catch (Exception ex)
+            {
+                logger.LogWarning(ex, "Failed to connect to MCP Server. Retrying in 5 seconds...");
+                await Task.Delay(5000);
+            }
         }
     }
 

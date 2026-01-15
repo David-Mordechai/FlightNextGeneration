@@ -17,4 +17,4 @@ var app = builder.Build();
 
 app.MapMcp();
 
-app.Run("http://*:52001");
+app.Run();

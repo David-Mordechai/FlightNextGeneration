@@ -16,15 +16,31 @@ builder.Services.AddSingleton<AiChatService>();
 
 var app = builder.Build();
 
-var config = new ConfigurationBuilder().AddUserSecrets<Program>().Build();
+var config = app.Configuration;
 var openAiModel = config["OpenAIModelName"] ?? "gpt-4o";
 var openAiKey = config["OpenAIKey"];
 var geminiModel = config["GoogleGeminiModel"] ?? "gemini-2.0-flash";
 var geminiKey = config["GoogleGeminiKey"];
-const string ollamaModel = "llama3.2";
-const string ollamaUrl = "http://localhost:11434";
+var ollamaModel = config["OllamaModel"] ?? "llama3.2";
+var ollamaUrl = config["OllamaUrl"] ?? "http://host.docker.internal:11434";
+Console.WriteLine($"[DEBUG] Configured OllamaUrl: {ollamaUrl}");
+
+var provider = config["AIProvider"] ?? "Ollama";
 var aiChatService = app.Services.GetRequiredService<AiChatService>();
-aiChatService.BuildChatService(ChatType.Ollama, ollamaModel, string.Empty, ollamaUrl);
+
+switch (provider.ToLower())
+{
+    case "openai":
+        aiChatService.BuildChatService(ChatType.OpenAi, openAiModel, openAiKey, string.Empty);
+        break;
+    case "gemini":
+        aiChatService.BuildChatService(ChatType.GoogleGemini, geminiModel, geminiKey, string.Empty);
+        break;
+    case "ollama":
+    default:
+        aiChatService.BuildChatService(ChatType.Ollama, ollamaModel, string.Empty, ollamaUrl);
+        break;
+}
 
 if (app.Environment.IsDevelopment())
 {
@@ -33,13 +49,15 @@ if (app.Environment.IsDevelopment())
 
 app.UseAuthorization();
 
+var allowedOrigins = config["AllowedOrigins"]?.Split(',') ?? ["http://localhost:5173", "http://localhost:4173"];
+
 app.UseCors(policyBuilder => policyBuilder
     .AllowAnyHeader()
     .AllowAnyMethod()
-    .WithOrigins("http://localhost:5173", "http://localhost:4173")
+    .WithOrigins(allowedOrigins)
     .AllowCredentials());
 
 app.MapControllers();
 app.MapHub<FlightHub>("/flightHub");
 
-app.Run("http://*:5066");
+app.Run();
