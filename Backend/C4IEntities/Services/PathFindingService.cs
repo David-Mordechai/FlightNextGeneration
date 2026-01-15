@@ -28,10 +28,15 @@ public class PathFindingService
         var endPoint = _geometryFactory.CreatePoint(new Coordinate(request.EndLng, request.EndLat));
 
         // 2. Build Nodes (Start, End, + Zone Vertices)
-        // We buffer zones slightly to avoid grazing the edge
-        var obstacles = zones.Select(z => z.Geometry.Buffer(0.0001) as Polygon).Where(p => p != null).Cast<Polygon>().ToList();
+        // Buffer zones to create a safety margin. 
+        // quadrantSegments: 2 reduces vertex count (chamfered corners) vs default 8, improving performance.
+        var obstacles = zones
+            .Select(z => z.Geometry.Buffer(0.0001, 2) as Polygon)
+            .Where(p => p != null)
+            .Cast<Polygon>()
+            .ToList();
         
-        // Simple check: Is direct path clear?
+        // Check if direct path is clear first (Optimization)
         var directLine = _geometryFactory.CreateLineString(new[] { startPoint.Coordinate, endPoint.Coordinate });
         if (IsPathClear(directLine, obstacles))
         {
@@ -42,24 +47,30 @@ public class PathFindingService
                     new() { Lat = request.StartLat, Lng = request.StartLng },
                     new() { Lat = request.EndLat, Lng = request.EndLng }
                 },
-                TotalDistanceMeters = GetDistance(startPoint.Coordinate, endPoint.Coordinate)
+                TotalDistanceMeters = HaversineDistance(startPoint.Coordinate, endPoint.Coordinate)
             };
         }
 
         // 3. Build Visibility Graph
-        // Collect all potential nodes
+        // Collect all potential nodes: Start, End, and all obstacle vertices
         var nodes = new List<Coordinate> { startPoint.Coordinate, endPoint.Coordinate };
         foreach (var obstacle in obstacles)
         {
-            // Add obstacle vertices
-            nodes.AddRange(obstacle.ExteriorRing.Coordinates.Take(obstacle.ExteriorRing.Coordinates.Length - 1)); // -1 to avoid duplicate close ring
+            // ExteriorRing coordinates include the closing point (same as first), so take all but last
+            nodes.AddRange(obstacle.ExteriorRing.Coordinates.Take(obstacle.ExteriorRing.Coordinates.Length - 1));
         }
 
         // Build Adjacency List
         var graph = new Dictionary<Coordinate, List<Coordinate>>();
         
-        // This is O(N^2) checking - okay for small number of zones (< 100 vertices)
-        // For larger sets, spatial indexing (STRtree) would be needed.
+        // Initialize graph keys
+        foreach (var node in nodes)
+        {
+            if (!graph.ContainsKey(node)) graph[node] = new List<Coordinate>();
+        }
+
+        // Connect visible nodes
+        // O(N^2) complexity. For very large N, a spatial index or specialized visibility algorithm is needed.
         for (int i = 0; i < nodes.Count; i++)
         {
             for (int j = i + 1; j < nodes.Count; j++)
@@ -67,12 +78,13 @@ public class PathFindingService
                 var u = nodes[i];
                 var v = nodes[j];
                 
+                // Optimization: Don't check if nodes are too far apart? (optional)
+                
                 var segment = _geometryFactory.CreateLineString(new[] { u, v });
+                
+                // If segment does not intersect any obstacle interior
                 if (IsPathClear(segment, obstacles))
                 {
-                    if (!graph.ContainsKey(u)) graph[u] = new List<Coordinate>();
-                    if (!graph.ContainsKey(v)) graph[v] = new List<Coordinate>();
-                    
                     graph[u].Add(v);
                     graph[v].Add(u);
                 }
@@ -82,6 +94,16 @@ public class PathFindingService
         // 4. Run Dijkstra
         var pathCoords = Dijkstra(graph, startPoint.Coordinate, endPoint.Coordinate);
         
+        if (pathCoords.Count == 0)
+        {
+             // Fallback or empty if no path found
+             return new RouteResponse
+             {
+                 Path = new List<GeoPoint>(),
+                 TotalDistanceMeters = 0
+             };
+        }
+
         return new RouteResponse
         {
             Path = pathCoords.Select(c => new GeoPoint { Lat = c.Y, Lng = c.X }).ToList(),
@@ -93,38 +115,23 @@ public class PathFindingService
     {
         foreach (var obstacle in obstacles)
         {
-            if (obstacle.Intersects(segment))
-            {
-                // If it just touches the boundary, it's technically okay in a visibility graph, 
-                // but intersects returns true for boundary too.
-                // We buffered obstacles earlier, so strict intersection check is safer.
-                
-                // Allow if the intersection is just the endpoints (which are vertices)
-                var intersection = obstacle.Intersection(segment);
-                if (intersection is Point || intersection is MultiPoint)
-                {
-                    // Check if points match segment endpoints
-                    // For simplicity in this v1, assume ANY intersection is bad unless we implement robust "touches" check.
-                    // But visibility graph relies on grazing edges.
-                    
-                    // Since we buffered obstacles outward, touching the buffer is "too close". 
-                    // EXCEPT that nodes ARE on the buffer boundary! 
-                    // So a segment between two nodes on the same obstacle will intersect the boundary.
-                    
-                    // Improvement: Use 'Crosses' or 'Overlaps' or check if interior intersects.
-                    if (obstacle.Covers(segment)) return false; // Segment inside
-                    
-                    // If it crosses the boundary (enters -> exits), it's bad.
-                    if (segment.Crosses(obstacle)) return false; 
-                    
-                    // If segment is completely within the obstacle (interior)
-                    if (obstacle.Contains(segment)) return false;
-                }
-                else
-                {
-                    return false; // LineString intersection = bad
-                }
-            }
+            // Fast envelope check first
+            if (!obstacle.EnvelopeInternal.Intersects(segment.EnvelopeInternal)) continue;
+
+            // Robust topological check using DE-9IM matrix.
+            // We must avoid the segment passing through the INTERIOR of the obstacle.
+            // It IS allowed to touch or run along the BOUNDARY.
+            
+            var matrix = obstacle.Relate(segment);
+
+            // Check if Interior(obstacle) intersects Interior(segment)
+            // The value at [Location.Interior, Location.Interior] should be 'F' (False) or -1.
+            // If it's 0, 1, or 2 (Dimension), then they intersect.
+            if (matrix[Location.Interior, Location.Interior] != Dimension.False) return false;
+
+            // Check if Interior(obstacle) intersects Boundary(segment)
+            // This prevents endpoints from being strictly inside the obstacle.
+            if (matrix[Location.Interior, Location.Boundary] != Dimension.False) return false;
         }
         return true;
     }
@@ -144,15 +151,17 @@ public class PathFindingService
 
         while (queue.Count > 0)
         {
-            var u = queue.Dequeue();
+            if (!queue.TryDequeue(out var u, out var currentDist)) break;
 
+            if (currentDist > distances[u]) continue; // Stale node
             if (u.Equals(end)) break;
 
             if (graph.TryGetValue(u, out var neighbors))
             {
                 foreach (var v in neighbors)
                 {
-                    var alt = distances[u] + u.Distance(v);
+                    var weight = HaversineDistance(u, v);
+                    var alt = distances[u] + weight;
                     if (alt < distances[v])
                     {
                         distances[v] = alt;
@@ -163,12 +172,17 @@ public class PathFindingService
             }
         }
 
+        // Reconstruct path
         var path = new List<Coordinate>();
         var current = end;
+        
+        if (!distances.ContainsKey(end) || distances[end] == double.MaxValue) 
+            return path; // No path found
+
         while (!current.Equals(start))
         {
             path.Add(current);
-            if (!previous.ContainsKey(current)) return new List<Coordinate>(); // No path
+            if (!previous.ContainsKey(current)) return new List<Coordinate>(); // Should not happen if path exists
             current = previous[current];
         }
         path.Add(start);
@@ -176,12 +190,20 @@ public class PathFindingService
         return path;
     }
 
-    private double GetDistance(Coordinate c1, Coordinate c2)
+    private static double HaversineDistance(Coordinate c1, Coordinate c2)
     {
-        // Simple Euclidean for now (degrees), acceptable for small areas. 
-        // For real world meters, use a Haversine or NTS PROJ.
-        // Returning rough approximation in meters (1 deg lat ~= 111km)
-        return c1.Distance(c2) * 111000;
+        const double R = 6371000; // Radius of Earth in meters
+        var lat1 = c1.Y * Math.PI / 180;
+        var lat2 = c2.Y * Math.PI / 180;
+        var dLat = (c2.Y - c1.Y) * Math.PI / 180;
+        var dLon = (c2.X - c1.X) * Math.PI / 180;
+
+        var a = Math.Sin(dLat / 2) * Math.Sin(dLat / 2) +
+                Math.Cos(lat1) * Math.Cos(lat2) *
+                Math.Sin(dLon / 2) * Math.Sin(dLon / 2);
+        var c = 2 * Math.Atan2(Math.Sqrt(a), Math.Sqrt(1 - a));
+
+        return R * c;
     }
 
     private double CalculateTotalDistance(List<Coordinate> path)
@@ -189,7 +211,7 @@ public class PathFindingService
         double dist = 0;
         for (int i = 0; i < path.Count - 1; i++)
         {
-            dist += GetDistance(path[i], path[i+1]);
+            dist += HaversineDistance(path[i], path[i+1]);
         }
         return dist;
     }
