@@ -1,4 +1,4 @@
-﻿using ModelContextProtocol.Server;
+using ModelContextProtocol.Server;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
@@ -24,39 +24,92 @@ public class Tools
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
-    [McpServerTool, Description("Navigate the UAV to a specific city or location.")]
+    [McpServerTool, Description("Navigate the UAV to a specific city or location. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
     public async Task<string> NavigateTo(
         [Description("The name of the city or location to fly to (e.g., 'Tel Aviv', 'Haifa')."), Required] 
         string location)
     {
         try
         {
-            var coordinates = await _geocodingService.GetCoordinatesAsync(location);
-            if (!coordinates.HasValue)
+            // 1. Get Target Coordinates
+            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
+            if (!targetCoords.HasValue)
             {
                 _logger.LogWarning("Failed to get coordinates for {Location}.", location);
                 return $"Could not find coordinates for {location}.";
             }
 
-            var json = JsonSerializer.Serialize(new
+            // 2. Get Current UAV State
+            var stateRes = await _httpClient.GetAsync("api/mission/state");
+            if (!stateRes.IsSuccessStatusCode) return "Failed to retrieve UAV state.";
+            
+            var stateJson = await stateRes.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(stateJson);
+            var currentLat = doc.RootElement.GetProperty("lat").GetDouble();
+            var currentLng = doc.RootElement.GetProperty("lng").GetDouble();
+
+            // 3. Calculate Path (Call C4I Service)
+            var c4IUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
+            using var c4IClient = new HttpClient();
+            c4IClient.BaseAddress = new Uri(c4IUrl);
+            var routeReq = new
             {
-                lat = coordinates.Value.Lat,
-                lng = coordinates.Value.Lng
-            });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await _httpClient.PostAsync("api/mission/target", content);
+                StartLat = currentLat,
+                StartLng = currentLng,
+                EndLat = targetCoords.Value.Lat,
+                EndLng = targetCoords.Value.Lng
+            };
+            
+            var routeRes = await c4IClient.PostAsync("api/route/calculate", 
+                new StringContent(JsonSerializer.Serialize(routeReq), Encoding.UTF8, "application/json"));
+            
+            if (!routeRes.IsSuccessStatusCode) return "Failed to calculate route via C4I service.";
 
-            if (!res.IsSuccessStatusCode)
-                return $"Fail to update mission to location {location}.";
+            var routeJson = await routeRes.Content.ReadAsStringAsync();
+            using var routeDoc = JsonDocument.Parse(routeJson);
+            var pathElement = routeDoc.RootElement.GetProperty("path");
+            var pointCount = pathElement.GetArrayLength();
 
-            _logger.LogInformation("Coordinates for {Location} are Lat: {Latitude}, Lon: {Longitude}.", location,
-                coordinates.Value.Lat, coordinates.Value.Lng);
-            return $"Mission updated! Flying to {location}.";
+            if (pointCount <= 2)
+            {
+                // Straight line - Use direct navigation
+                var json = JsonSerializer.Serialize(new
+                {
+                    lat = targetCoords.Value.Lat,
+                    lng = targetCoords.Value.Lng
+                });
+                var content = new StringContent(json, Encoding.UTF8, "application/json");
+                var res = await _httpClient.PostAsync("api/mission/target", content);
+
+                if (!res.IsSuccessStatusCode)
+                    return $"Fail to update mission to location {location}.";
+
+                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}).", location,
+                    targetCoords.Value.Lat, targetCoords.Value.Lng);
+                return $"Path clear. Flying directly to {location}.";
+            }
+            else
+            {
+                // Complex path - Preview and Execute
+                var pathJson = JsonSerializer.Serialize(pathElement);
+                var content = new StringContent(pathJson, Encoding.UTF8, "application/json");
+                
+                // Preview
+                var previewRes = await _httpClient.PostAsync("api/mission/path/preview", content);
+                if (!previewRes.IsSuccessStatusCode) return "Failed to preview optimal path.";
+
+                // Execute
+                var execRes = await _httpClient.PostAsync("api/mission/path/execute", null);
+                if (!execRes.IsSuccessStatusCode) return "Failed to execute optimal path.";
+
+                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}.", location);
+                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}.";
+            }
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Fail to communicate with the client");
-            return "Fail to communicate with the client";
+            _logger.LogError(ex, "Fail to communicate with the client or services");
+            return $"Error: {ex.Message}";
         }
     }
 
@@ -109,80 +162,6 @@ public class Tools
         {
             _logger.LogError(ex, "Fail to communicate with the client");
             return "Fail to communicate with the client";
-        }
-    }
-
-    [McpServerTool, Description("Calculate an optimal route to a target avoiding no-fly zones.")]
-    public async Task<string> CalculateOptimalPath(
-        [Description("The name of the target city or location (e.g., 'Haifa')."), Required] string targetLocation)
-    {
-        try
-        {
-            // 1. Get Target Coordinates
-            var targetCoords = await _geocodingService.GetCoordinatesAsync(targetLocation);
-            if (!targetCoords.HasValue) return $"Could not find location: {targetLocation}";
-
-            // 2. Get Current UAV State
-            var stateRes = await _httpClient.GetAsync("api/mission/state");
-            if (!stateRes.IsSuccessStatusCode) return "Failed to retrieve UAV state.";
-            
-            var stateJson = await stateRes.Content.ReadAsStringAsync();
-            using var doc = JsonDocument.Parse(stateJson);
-            var currentLat = doc.RootElement.GetProperty("lat").GetDouble();
-            var currentLng = doc.RootElement.GetProperty("lng").GetDouble();
-
-            // 3. Calculate Path (Call C4I Service)
-            // Note: In real world, use Service Discovery. Here hardcoded port.
-            var c4iUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
-            using var c4iClient = new HttpClient { BaseAddress = new Uri(c4iUrl) };
-            var routeReq = new
-            {
-                StartLat = currentLat,
-                StartLng = currentLng,
-                EndLat = targetCoords.Value.Lat,
-                EndLng = targetCoords.Value.Lng
-            };
-            
-            var routeRes = await c4iClient.PostAsync("api/route/calculate", 
-                new StringContent(JsonSerializer.Serialize(routeReq), Encoding.UTF8, "application/json"));
-            
-            if (!routeRes.IsSuccessStatusCode) return "Failed to calculate route via C4I service.";
-
-            var routeJson = await routeRes.Content.ReadAsStringAsync();
-            using var routeDoc = JsonDocument.Parse(routeJson);
-            var distance = routeDoc.RootElement.GetProperty("totalDistanceMeters").GetDouble();
-            var path = routeDoc.RootElement.GetProperty("path");
-
-            // 4. Broadcast to Frontend (Call Bff Preview)
-            // path is already a JsonElement array from C4I response
-            var pathJson = JsonSerializer.Serialize(path);
-            var content = new StringContent(pathJson, Encoding.UTF8, "application/json");
-            
-            await _httpClient.PostAsync("api/mission/path/preview", content);
-
-            return $"Optimal route calculated to {targetLocation}. Distance: {distance/1000:F2} km. Path displayed on map. Approve execution?";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error calculating optimal path");
-            return $"Error: {ex.Message}";
-        }
-    }
-
-    [McpServerTool, Description("Execute the previously calculated and previewed flight plan.")]
-    public async Task<string> ExecuteFlightPlan()
-    {
-        try
-        {
-            var res = await _httpClient.PostAsync("api/mission/path/execute", null);
-            if (!res.IsSuccessStatusCode) return "Failed to execute plan. No pending path found or system error.";
-
-            return "Flight plan executed. UAV is proceeding to waypoints.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error executing flight plan");
-            return "Error executing flight plan.";
         }
     }
 }
