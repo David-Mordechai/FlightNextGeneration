@@ -12,18 +12,17 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
     private IChatClient? _chatClient;
     private IList<McpClientTool> _tools = [];
     private readonly List<ChatMessage> _chatHistory = [];
-    
-    private readonly string _systemInstructions = 
-        """
-        You are an AI Flight Control Assistant.
-        
-        CRITICAL RULES:
-        1. You have ACCESS to real-time flight tools. Use them!
-        2. NEVER output raw JSON tool calls in your response text. 
-        3. If you want to use a tool, use the formal tool-calling mechanism.
-        4. Use tool response to formulate the answer to the user.
-        5. Be extremely concise. Direct answers only.
-        """;
+
+    private const string SystemInstructions = """
+                                               You are an AI Flight Control Assistant.
+
+                                               CRITICAL RULES:
+                                               1. You have ACCESS to real-time flight tools. Use them!
+                                               2. NEVER output raw JSON tool calls in your response text. 
+                                               3. If you want to use a tool, use the formal tool-calling mechanism.
+                                               4. Use tool response to formulate the answer to the user.
+                                               5. Be extremely concise. Direct answers only.
+                                               """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
     {
@@ -34,7 +33,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             // Initialize history with system prompt
             if (_chatHistory.Count == 0)
             {
-                _chatHistory.Add(new ChatMessage(ChatRole.System, _systemInstructions));
+                _chatHistory.Add(new ChatMessage(ChatRole.System, SystemInstructions));
             }
 
             var mcpEndpoint = config["McpServerUrl"] ?? "http://mcpserver.flightcontrol:8080";
