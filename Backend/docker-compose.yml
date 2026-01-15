@@ -20,7 +20,7 @@ services:
       - c4ientities
       - mcpserver.flightcontrol
     environment:
-      - OllamaUrl=${OLLAMA_URL}
+      - OllamaUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
       - AIProvider=${AI_PROVIDER}
       - OllamaModel=${OLLAMA_MODEL}
       - OpenAIModelName=${OPENAI_MODEL_NAME}
@@ -28,6 +28,8 @@ services:
       - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
       - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
       - McpServerUrl=http://mcpserver.flightcontrol:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
   c4ientities:
     image: ${DOCKER_REGISTRY-}c4ientities
