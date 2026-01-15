@@ -31,10 +31,10 @@ var aiChatService = app.Services.GetRequiredService<AiChatService>();
 switch (provider.ToLower())
 {
     case "openai":
-        aiChatService.BuildChatService(ChatType.OpenAi, openAiModel, openAiKey, string.Empty);
+        aiChatService.BuildChatService(ChatType.OpenAi, openAiModel, openAiKey ?? string.Empty, string.Empty);
         break;
     case "gemini":
-        aiChatService.BuildChatService(ChatType.GoogleGemini, geminiModel, geminiKey, string.Empty);
+        aiChatService.BuildChatService(ChatType.GoogleGemini, geminiModel, geminiKey ?? string.Empty, string.Empty);
         break;
     case "ollama":
     default:
