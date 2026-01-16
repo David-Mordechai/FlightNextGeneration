@@ -213,6 +213,11 @@ export function useC4ILayer(map: any) {
                     };
 
                     layer.bindPopup(`<strong>${point.name}</strong><br>${point.type === PointType.Home ? 'Home' : 'Target'}`);
+                    layer.bindTooltip(point.name, { 
+                        permanent: true, 
+                        direction: 'right', 
+                        className: 'entity-label'
+                    });
                     drawnItems.addLayer(layer);
                 }
             });
@@ -233,6 +238,11 @@ export function useC4ILayer(map: any) {
             sourceLayer.feature.properties = properties;
             
             sourceLayer.bindPopup(`<strong>${properties.name}</strong><br>Alt: ${properties.minAltitude}-${properties.maxAltitude}ft`);
+            sourceLayer.bindTooltip(properties.name, { 
+                permanent: true, 
+                direction: 'right', 
+                className: 'entity-label'
+            });
             
             // Edit Click Listener
             sourceLayer.on('click', () => {
@@ -294,6 +304,7 @@ export function useC4ILayer(map: any) {
                     
                     const newContent = `<strong>${zoneData.name}</strong><br>Alt: ${zoneData.minAltitude}-${zoneData.maxAltitude}ft`;
                     layer.setPopupContent(newContent);
+                    layer.setTooltipContent(zoneData.name);
                 }
                 
                  if (drawControlInstance && isEditingGeometry.value) {
@@ -390,6 +401,11 @@ export function useC4ILayer(map: any) {
                 }
             };
             layer.bindPopup(`<strong>${saved.name}</strong><br>${saved.type === PointType.Home ? 'Home' : 'Target'}`);
+            layer.bindTooltip(saved.name, { 
+                permanent: true, 
+                direction: 'right', 
+                className: 'entity-label'
+            });
             drawnItems.addLayer(layer);
             
             showPointModal.value = false;

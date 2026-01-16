@@ -24,9 +24,9 @@ public class Tools
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
-    [McpServerTool, Description("Navigate the UAV to a specific city or location. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
+    [McpServerTool, Description("Navigate the UAV to a specific named point. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
     public async Task<string> NavigateTo(
-        [Description("The name of the city or location to fly to (e.g., 'Tel Aviv', 'Haifa')."), Required] 
+        [Description("The name of the defined point to fly to (e.g., 'Home', 'Target Alpha')."), Required] 
         string location)
     {
         try

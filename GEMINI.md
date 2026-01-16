@@ -20,6 +20,7 @@ Next-generation flight control and visualization system with C4I entity manageme
   - Features: Create, Load, Edit (Geometry & Metadata), and Delete No-Fly Zones.
   - Robust error handling and Leaflet compatibility fixes.
   - **Fix:** Added logic to enforce 2D geometries (removing Z coordinates) to prevent database errors.
+  - **Visualization:** Added permanent labels with cyan text positioned on the right of entities.
 
 - **Points (New)**
   - **Entities:** Home (Start) and Target (End) locations.
@@ -31,9 +32,13 @@ Next-generation flight control and visualization system with C4I entity manageme
   - **Tools:** `PointsController`, `PointModal`.
   - **Status:** Verified. Migration `InitialCreate` reset and recreated.
 
+- **MCP Tools**
+  - **NavigateTo:** Updated to resolve locations against the `Points` database instead of global city names. User refers to points by name (e.g., "Home", "Target").
+
 - **Flight Visualization**
   - Real-time UAV tracking via SignalR.
-  - Historical and projected path visualization.
+  - **Note:** Historical path visualization (blue tail) has been removed for a cleaner view.
+  - Projected path visualization remains.
   - **Waypoint Navigation:** UAV now follows a queue of waypoints for complex paths.
   - **Custom UAV Icon:** Replaced default SVG with `Orbiter3.png` for enhanced visualization.
 

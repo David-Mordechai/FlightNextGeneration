@@ -19,9 +19,17 @@ public class PointsController(C4IDbContext context) : ControllerBase
     public async Task<ActionResult<Point>> CreatePoint(Point point)
     {
         // Ensure geometry has SRID 4326
-        if (point.Location.SRID != 4326)
+        if (point.Location != null)
         {
             point.Location.SRID = 4326;
+            try
+            {            
+                point.Location.Coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
+            }
+            catch (InvalidOperationException)
+            {
+                // Already 2D
+            }
         }
 
         context.Points.Add(point);

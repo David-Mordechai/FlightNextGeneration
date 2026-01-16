@@ -5,7 +5,6 @@ import { createUavIcon } from '../utils/leafletSetup';
 
 export function useFlightVisualization(map: any) {
     const markers = ref<Map<string, L.Marker>>(new Map());
-    const paths = ref<Map<string, L.Polyline>>(new Map());
     const projectedPaths = ref<Map<string, L.Polyline>>(new Map());
     const optimalPathLayer = ref<L.Polyline | null>(null);
     const hasCentered = ref(false);
@@ -53,25 +52,7 @@ export function useFlightVisualization(map: any) {
             currentFlightData.value = { flightId, lat, lng, altitude, speed, heading };
             const scale = Math.max(0.3, Math.min(1.8, 3000 / altitude));
 
-            // 1. Historical Path
-            if (!paths.value.has(flightId)) {
-                const polyline = L.polyline([], {
-                    color: '#3B82F6', 
-                    weight: 4,
-                    opacity: 0.8,
-                    smoothFactor: 0.5
-                }).addTo(currentMap);
-                paths.value.set(flightId, markRaw(polyline));
-            }
-            
-            const path = paths.value.get(flightId);
-            if (path) {
-                path.addLatLng([lat, lng]);
-                const latLngs = path.getLatLngs() as L.LatLng[];
-                if (latLngs.length > 2000) {
-                    path.setLatLngs(latLngs.slice(latLngs.length - 2000));
-                }
-            }
+            // 1. Historical Path - REMOVED
 
             // 2. Projected Path
             if (!projectedPaths.value.has(flightId)) {

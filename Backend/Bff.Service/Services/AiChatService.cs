@@ -22,6 +22,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                                                3. If you want to use a tool, use the formal tool-calling mechanism.
                                                4. Use tool response to formulate the answer to the user.
                                                5. Be extremely concise. Direct answers only.
+                                               6. Do NOT use markdown formatting like bold (**text**) or italics in your response. Output plain text only.
                                                """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)

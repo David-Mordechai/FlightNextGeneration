@@ -67,9 +67,17 @@ public class NoFlyZonesController(C4IDbContext context) : ControllerBase
 
     private void Make2D(NetTopologySuite.Geometries.Geometry geometry)
     {
+        if (geometry == null) return;
         foreach (var coordinate in geometry.Coordinates)
         {
-            coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
+            try
+            {
+                coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
+            }
+            catch (InvalidOperationException)
+            {
+                // Coordinate does not support Z, which means it is already 2D.
+            }
         }
     }
 
