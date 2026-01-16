@@ -1,14 +1,12 @@
 import { ref } from 'vue';
 import L from 'leaflet';
-import { c4iService, type NoFlyZone } from '../services/C4IService';
+import { c4iService, type NoFlyZone, type Point, PointType } from '../services/C4IService';
 
 export function useC4ILayer(map: any) {
     const drawnItems = new L.FeatureGroup();
+    
+    // No Fly Zone State
     const showNewZoneModal = ref(false);
-    const isEditingGeometry = ref(false);
-    const tempLayer = ref<L.Layer | null>(null);
-    let drawControlInstance: any = null;
-
     const newZoneForm = ref<{
         id?: string;
         name: string;
@@ -20,6 +18,21 @@ export function useC4ILayer(map: any) {
         maxAltitude: 10000
     });
 
+    // Point State
+    const showPointModal = ref(false);
+    const newPointForm = ref<{
+        id?: string;
+        name: string;
+        type: PointType;
+    }>({
+        name: '',
+        type: PointType.Home
+    });
+
+    const isEditingGeometry = ref(false);
+    const tempLayer = ref<L.Layer | null>(null);
+    let drawControlInstance: any = null;
+
     const initializeDrawControls = (leafletMap: L.Map) => {
         leafletMap.addLayer(drawnItems);
         
@@ -28,7 +41,7 @@ export function useC4ILayer(map: any) {
             draw: {
                 polyline: false,
                 circle: false,
-                marker: false,
+                marker: {},
                 circlemarker: false,
                 polygon: {
                     allowIntersection: false,
@@ -52,18 +65,29 @@ export function useC4ILayer(map: any) {
         // 1. Created
         leafletMap.on(L.Draw.Event.CREATED, (e: any) => {
             const layer = e.layer;
+            const type = e.layerType;
+            
             tempLayer.value = layer;
             leafletMap.addLayer(layer);
-            
-            // Reset form
-            newZoneForm.value = {
-                id: undefined,
-                name: '',
-                minAltitude: 0,
-                maxAltitude: 10000
-            };
-            
-            showNewZoneModal.value = true;
+
+            if (type === 'marker') {
+                // Point Created
+                newPointForm.value = {
+                    id: undefined,
+                    name: '',
+                    type: PointType.Home
+                };
+                showPointModal.value = true;
+            } else {
+                // No Fly Zone Created
+                newZoneForm.value = {
+                    id: undefined,
+                    name: '',
+                    minAltitude: 0,
+                    maxAltitude: 10000
+                };
+                showNewZoneModal.value = true;
+            }
         });
 
         // 2. Edit Start/Stop (Geometry Mode)
@@ -81,23 +105,32 @@ export function useC4ILayer(map: any) {
             const layers = e.layers;
             layers.eachLayer(async (layer: any) => {
                 const id = (layer as any).feature?.properties?.id;
+                // Currently only supporting geometry updates for NoFlyZones via this event
+                // Points are just points, moving them is supported but we need to check the type
                 if (id) {
-                    const geoJson = layer.toGeoJSON();
-                    const updatedZone: NoFlyZone = {
-                        id: id,
-                        name: (layer as any).feature?.properties?.name || 'Updated Zone',
-                        minAltitude: (layer as any).feature?.properties?.minAltitude || 0,
-                        maxAltitude: (layer as any).feature?.properties?.maxAltitude || 10000,
-                        isActive: true,
-                        geometry: geoJson.geometry
-                    };
-                    
-                    try {
-                        await c4iService.update(id, updatedZone);
-                        console.log(`Zone ${id} updated geometry`);
-                    } catch (err) {
-                        console.error(`Failed to update zone ${id}`, err);
-                    }
+                     // Determine if it's a zone or a point based on geometry type
+                     const geoJson = layer.toGeoJSON();
+                     if (geoJson.geometry.type === 'Point') {
+                        // It's a Point
+                         console.log('Point update not fully implemented via drag yet, pending requirement');
+                     } else {
+                        // It's a NoFlyZone
+                        const updatedZone: NoFlyZone = {
+                            id: id,
+                            name: (layer as any).feature?.properties?.name || 'Updated Zone',
+                            minAltitude: (layer as any).feature?.properties?.minAltitude || 0,
+                            maxAltitude: (layer as any).feature?.properties?.maxAltitude || 10000,
+                            isActive: true,
+                            geometry: geoJson.geometry
+                        };
+                        
+                        try {
+                            await c4iService.update(id, updatedZone);
+                            console.log(`Zone ${id} updated geometry`);
+                        } catch (err) {
+                            console.error(`Failed to update zone ${id}`, err);
+                        }
+                     }
                 }
             });
         });
@@ -107,12 +140,19 @@ export function useC4ILayer(map: any) {
             const layers = e.layers;
             layers.eachLayer(async (layer: any) => {
                 const id = (layer as any).feature?.properties?.id;
+                const isPoint = (layer as any).feature?.properties?.isPoint;
+                
                 if (id) {
                     try {
-                        await c4iService.delete(id);
-                        console.log(`Zone ${id} deleted`);
+                        if (isPoint) {
+                            await c4iService.deletePoint(id);
+                            console.log(`Point ${id} deleted`);
+                        } else {
+                            await c4iService.delete(id);
+                            console.log(`Zone ${id} deleted`);
+                        }
                     } catch (err) {
-                        console.error(`Failed to delete zone ${id}`, err);
+                        console.error(`Failed to delete entity ${id}`, err);
                     }
                 }
             });
@@ -132,12 +172,52 @@ export function useC4ILayer(map: any) {
                         id: zone.id,
                         name: zone.name,
                         minAltitude: zone.minAltitude,
-                        maxAltitude: zone.maxAltitude
+                        maxAltitude: zone.maxAltitude,
+                        isPoint: false
                     });
                 }
             });
         } catch (e) {
             console.error("Failed to load No Fly Zones", e);
+        }
+    };
+    
+    const loadPoints = async () => {
+        try {
+            const points = await c4iService.getAllPoints();
+            points.forEach(point => {
+                if (point.location) {
+                    const iconUrl = point.type === PointType.Home ? '/home.svg' : '/target.svg';
+                    const customIcon = L.icon({
+                        iconUrl: iconUrl,
+                        iconSize: [32, 32],
+                        iconAnchor: [16, 16],
+                        popupAnchor: [0, -16]
+                    });
+
+                    // Create marker directly
+                    const lat = point.location.coordinates[1];
+                    const lng = point.location.coordinates[0];
+                    const layer = L.marker([lat, lng], { icon: customIcon });
+
+                    // Add properties
+                    // @ts-ignore
+                    layer.feature = {
+                        type: 'Feature',
+                        properties: {
+                            id: point.id,
+                            name: point.name,
+                            type: point.type,
+                            isPoint: true
+                        }
+                    };
+
+                    layer.bindPopup(`<strong>${point.name}</strong><br>${point.type === PointType.Home ? 'Home' : 'Target'}`);
+                    drawnItems.addLayer(layer);
+                }
+            });
+        } catch (e) {
+            console.error("Failed to load Points", e);
         }
     };
 
@@ -172,6 +252,8 @@ export function useC4ILayer(map: any) {
         }
     };
 
+    // --- No Fly Zone Handlers ---
+
     const handleSaveZone = async () => {
         if (!tempLayer.value) {
             console.error("handleSaveZone: tempLayer is null");
@@ -188,16 +270,7 @@ export function useC4ILayer(map: any) {
             return;
         }
 
-        console.log("GeoJSON from layer:", geoJson);
-
-        // Handle cases where toGeoJSON returns a Feature or a raw Geometry
         const geometry = geoJson.type === 'Feature' ? geoJson.geometry : geoJson;
-
-        if (!geometry || !geometry.type || !geometry.coordinates) {
-             console.error("Invalid geometry extracted:", geometry);
-             alert("Invalid geometry data.");
-             return;
-        }
 
         const zoneData: NoFlyZone = {
             id: newZoneForm.value.id,
@@ -223,8 +296,7 @@ export function useC4ILayer(map: any) {
                     layer.setPopupContent(newContent);
                 }
                 
-                // Close Edit Mode
-                if (drawControlInstance && isEditingGeometry.value) {
+                 if (drawControlInstance && isEditingGeometry.value) {
                     // @ts-ignore
                     drawControlInstance._toolbars.edit.disable(); 
                 }
@@ -239,7 +311,8 @@ export function useC4ILayer(map: any) {
                     id: saved.id,
                     name: saved.name,
                     minAltitude: saved.minAltitude,
-                    maxAltitude: saved.maxAltitude
+                    maxAltitude: saved.maxAltitude,
+                    isPoint: false
                 });
                 
                 if(map.value) map.value.removeLayer(layer);
@@ -247,12 +320,6 @@ export function useC4ILayer(map: any) {
 
             showNewZoneModal.value = false;
             tempLayer.value = null;
-            newZoneForm.value = {
-                id: undefined,
-                name: '',
-                minAltitude: 0,
-                maxAltitude: 10000
-            };
         } catch (e) {
             console.error("Save Zone Error Details:", e);
             alert('Failed to save zone: ' + (e instanceof Error ? e.message : String(e)));
@@ -282,13 +349,83 @@ export function useC4ILayer(map: any) {
         }
     };
 
+    // --- Point Handlers ---
+
+    const handleSavePoint = async () => {
+        if (!tempLayer.value) return;
+
+        const layer = tempLayer.value as L.Marker;
+        const latLng = layer.getLatLng();
+
+        const pointData: Point = {
+            name: newPointForm.value.name,
+            type: newPointForm.value.type,
+            location: {
+                type: 'Point',
+                coordinates: [latLng.lng, latLng.lat]
+            }
+        };
+
+        try {
+            const saved = await c4iService.createPoint(pointData);
+            
+            // Set Icon
+            const iconUrl = saved.type === PointType.Home ? '/home.svg' : '/target.svg';
+            layer.setIcon(L.icon({
+                iconUrl: iconUrl,
+                iconSize: [32, 32],
+                iconAnchor: [16, 16],
+                popupAnchor: [0, -16]
+            }));
+
+            // Set Properties
+             // @ts-ignore
+            layer.feature = {
+                type: 'Feature',
+                properties: {
+                    id: saved.id,
+                    name: saved.name,
+                    type: saved.type,
+                    isPoint: true
+                }
+            };
+            layer.bindPopup(`<strong>${saved.name}</strong><br>${saved.type === PointType.Home ? 'Home' : 'Target'}`);
+            drawnItems.addLayer(layer);
+            
+            showPointModal.value = false;
+            tempLayer.value = null;
+
+        } catch (e) {
+            alert('Failed to save point');
+            console.error(e);
+        }
+    };
+
+    const handleCancelPoint = () => {
+        if (tempLayer.value && map.value) {
+            map.value.removeLayer(tempLayer.value);
+        }
+        showPointModal.value = false;
+        tempLayer.value = null;
+    };
+
     return {
+        // NoFlyZone exports
         showNewZoneModal,
         newZoneForm,
-        initializeDrawControls,
-        loadNoFlyZones,
         handleSaveZone,
         handleCancelZone,
-        handleDeleteZone
+        handleDeleteZone,
+
+        // Point exports
+        showPointModal,
+        newPointForm,
+        handleSavePoint,
+        handleCancelPoint,
+
+        // Common
+        initializeDrawControls,
+        loadNoFlyZones,
+        loadPoints
     };
 }

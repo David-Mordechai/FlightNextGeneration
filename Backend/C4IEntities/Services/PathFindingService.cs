@@ -6,22 +6,15 @@ using NetTopologySuite.Geometries;
 
 namespace C4IEntities.Services;
 
-public class PathFindingService
+public class PathFindingService(C4IDbContext context)
 {
-    private readonly C4IDbContext _context;
-    private readonly GeometryFactory _geometryFactory;
-
-    public PathFindingService(C4IDbContext context)
-    {
-        _context = context;
-        _geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
-    }
+    private readonly GeometryFactory _geometryFactory = NtsGeometryServices.Instance.CreateGeometryFactory(srid: 4326);
 
     public async Task<RouteResponse> CalculateOptimalPath(RouteRequest request)
     {
         // 1. Fetch Active Zones
-        var zones = await _context.NoFlyZones
-            .Where(z => z.IsActive && z.Geometry != null)
+        var zones = await context.NoFlyZones
+            .Where(z => z.IsActive)
             .ToListAsync();
 
         var startPoint = _geometryFactory.CreatePoint(new Coordinate(request.StartLng, request.StartLat));
@@ -37,16 +30,16 @@ public class PathFindingService
             .ToList();
         
         // Check if direct path is clear first (Optimization)
-        var directLine = _geometryFactory.CreateLineString(new[] { startPoint.Coordinate, endPoint.Coordinate });
+        var directLine = _geometryFactory.CreateLineString([startPoint.Coordinate, endPoint.Coordinate]);
         if (IsPathClear(directLine, obstacles))
         {
             return new RouteResponse
             {
-                Path = new List<GeoPoint> 
-                { 
-                    new() { Lat = request.StartLat, Lng = request.StartLng },
-                    new() { Lat = request.EndLat, Lng = request.EndLng }
-                },
+                Path =
+                [
+                    new GeoPoint { Lat = request.StartLat, Lng = request.StartLng },
+                    new GeoPoint { Lat = request.EndLat, Lng = request.EndLng }
+                ],
                 TotalDistanceMeters = HaversineDistance(startPoint.Coordinate, endPoint.Coordinate)
             };
         }

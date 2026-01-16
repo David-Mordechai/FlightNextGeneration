@@ -7,7 +7,22 @@ export interface NoFlyZone {
     isActive: boolean;
 }
 
-const API_URL = 'http://localhost:5293/api/noflyzones';
+export const PointType = {
+    Home: 0,
+    Target: 1
+} as const;
+
+export type PointType = typeof PointType[keyof typeof PointType];
+
+export interface Point {
+    id?: string;
+    name: string;
+    location: any; // GeoJSON Point
+    type: PointType;
+}
+const BASE_API_URL = 'http://localhost:5293/api';
+const API_URL = `${BASE_API_URL}/noflyzones`;
+const POINTS_API_URL = `${BASE_API_URL}/points`;
 
 export const c4iService = {
     async getAll(): Promise<NoFlyZone[]> {
@@ -52,6 +67,38 @@ export const c4iService = {
         });
         if (!response.ok) {
             throw new Error('Failed to delete No Fly Zone');
+        }
+    },
+
+    // Points
+    async getAllPoints(): Promise<Point[]> {
+        const response = await fetch(POINTS_API_URL);
+        if (!response.ok) {
+            throw new Error('Failed to fetch Points');
+        }
+        return response.json();
+    },
+
+    async createPoint(point: Point): Promise<Point> {
+        const response = await fetch(POINTS_API_URL, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(point)
+        });
+        if (!response.ok) {
+            throw new Error('Failed to create Point');
+        }
+        return response.json();
+    },
+
+    async deletePoint(id: string): Promise<void> {
+        const response = await fetch(`${POINTS_API_URL}/${id}`, {
+            method: 'DELETE'
+        });
+        if (!response.ok) {
+            throw new Error('Failed to delete Point');
         }
     }
 };

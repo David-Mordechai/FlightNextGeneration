@@ -7,19 +7,12 @@ namespace C4IEntities.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class NoFlyZonesController : ControllerBase
+public class NoFlyZonesController(C4IDbContext context) : ControllerBase
 {
-    private readonly C4IDbContext _context;
-
-    public NoFlyZonesController(C4IDbContext context)
-    {
-        _context = context;
-    }
-
     [HttpGet]
     public async Task<ActionResult<IEnumerable<NoFlyZone>>> GetNoFlyZones()
     {
-        return await _context.NoFlyZones.ToListAsync();
+        return await context.NoFlyZones.ToListAsync();
     }
 
     [HttpPost]
@@ -30,14 +23,12 @@ public class NoFlyZonesController : ControllerBase
             noFlyZone.Id = Guid.NewGuid();
         }
 
-        // Ensure geometry has correct SRID (4326 for GPS)
-        if (noFlyZone.Geometry != null && noFlyZone.Geometry.SRID != 4326)
-        {
-            noFlyZone.Geometry.SRID = 4326;
-        }
+        // Ensure geometry has correct SRID (4326 for GPS) and is 2D
+        noFlyZone.Geometry.SRID = 4326;
+        Make2D(noFlyZone.Geometry);
 
-        _context.NoFlyZones.Add(noFlyZone);
-        await _context.SaveChangesAsync();
+        context.NoFlyZones.Add(noFlyZone);
+        await context.SaveChangesAsync();
 
         return CreatedAtAction(nameof(GetNoFlyZones), new { id = noFlyZone.Id }, noFlyZone);
     }
@@ -50,20 +41,18 @@ public class NoFlyZonesController : ControllerBase
             return BadRequest();
         }
 
-        if (noFlyZone.Geometry != null && noFlyZone.Geometry.SRID != 4326)
-        {
-            noFlyZone.Geometry.SRID = 4326;
-        }
+        noFlyZone.Geometry.SRID = 4326;
+        Make2D(noFlyZone.Geometry);
 
-        _context.Entry(noFlyZone).State = EntityState.Modified;
+        context.Entry(noFlyZone).State = EntityState.Modified;
 
         try
         {
-            await _context.SaveChangesAsync();
+            await context.SaveChangesAsync();
         }
         catch (DbUpdateConcurrencyException)
         {
-            if (!_context.NoFlyZones.Any(e => e.Id == id))
+            if (!context.NoFlyZones.Any(e => e.Id == id))
             {
                 return NotFound();
             }
@@ -76,17 +65,25 @@ public class NoFlyZonesController : ControllerBase
         return NoContent();
     }
 
+    private void Make2D(NetTopologySuite.Geometries.Geometry geometry)
+    {
+        foreach (var coordinate in geometry.Coordinates)
+        {
+            coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
+        }
+    }
+
     [HttpDelete("{id}")]
     public async Task<IActionResult> DeleteNoFlyZone(Guid id)
     {
-        var noFlyZone = await _context.NoFlyZones.FindAsync(id);
+        var noFlyZone = await context.NoFlyZones.FindAsync(id);
         if (noFlyZone == null)
         {
             return NotFound();
         }
 
-        _context.NoFlyZones.Remove(noFlyZone);
-        await _context.SaveChangesAsync();
+        context.NoFlyZones.Remove(noFlyZone);
+        await context.SaveChangesAsync();
 
         return NoContent();
     }

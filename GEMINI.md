@@ -19,11 +19,23 @@ Next-generation flight control and visualization system with C4I entity manageme
   - Frontend management interface using Leaflet and Leaflet-Draw.
   - Features: Create, Load, Edit (Geometry & Metadata), and Delete No-Fly Zones.
   - Robust error handling and Leaflet compatibility fixes.
+  - **Fix:** Added logic to enforce 2D geometries (removing Z coordinates) to prevent database errors.
+
+- **Points (New)**
+  - **Entities:** Home (Start) and Target (End) locations.
+  - **Interaction:**
+    - Place markers using the "Marker" draw tool.
+    - Specify name and type (Home/Target) in a dedicated modal.
+    - Custom SVG icons for visualization.
+  - **Backend:** `Points` API (`PointsController`) with geospatial `Point` storage.
+  - **Tools:** `PointsController`, `PointModal`.
+  - **Status:** Verified. Migration `InitialCreate` reset and recreated.
 
 - **Flight Visualization**
   - Real-time UAV tracking via SignalR.
   - Historical and projected path visualization.
   - **Waypoint Navigation:** UAV now follows a queue of waypoints for complex paths.
+  - **Custom UAV Icon:** Replaced default SVG with `Orbiter3.png` for enhanced visualization.
 
 ## Technical Details
 - **Backend:** .NET 10, Entity Framework Core, Npgsql (PostGIS), NetTopologySuite.

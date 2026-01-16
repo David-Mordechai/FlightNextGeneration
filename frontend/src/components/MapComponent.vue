@@ -10,6 +10,7 @@ import { useC4ILayer } from '../composables/useC4ILayer';
 import FlightDataOverlay from './FlightDataOverlay.vue';
 import MissionChat from './MissionChat.vue';
 import NoFlyZoneModal from './NoFlyZoneModal.vue';
+import PointModal from './PointModal.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const map = ref<L.Map | null>(null);
@@ -23,12 +24,17 @@ const {
 
 const { 
     showNewZoneModal, 
-    newZoneForm, 
+    newZoneForm,
+    showPointModal,
+    newPointForm,
     initializeDrawControls, 
-    loadNoFlyZones, 
+    loadNoFlyZones,
+    loadPoints,
     handleSaveZone, 
     handleCancelZone, 
-    handleDeleteZone 
+    handleDeleteZone,
+    handleSavePoint,
+    handleCancelPoint
 } = useC4ILayer(map);
 
 onMounted(async () => {
@@ -51,6 +57,7 @@ onMounted(async () => {
     // 3. Initialize Layers & Controls
     initializeDrawControls(leafletMap);
     await loadNoFlyZones();
+    await loadPoints();
     initializeFlightListeners();
   }
 });
@@ -77,6 +84,13 @@ onUnmounted(async () => {
       @save="handleSaveZone"
       @cancel="handleCancelZone"
       @delete="handleDeleteZone"
+    />
+
+    <PointModal
+      v-model:visible="showPointModal"
+      v-model:form="newPointForm"
+      @save="handleSavePoint"
+      @cancel="handleCancelPoint"
     />
   </div>
 </template>

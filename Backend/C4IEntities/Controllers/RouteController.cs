@@ -6,21 +6,14 @@ namespace C4IEntities.Controllers;
 
 [ApiController]
 [Route("api/[controller]")]
-public class RouteController : ControllerBase
+public class RouteController(PathFindingService pathFindingService) : ControllerBase
 {
-    private readonly PathFindingService _pathFindingService;
-
-    public RouteController(PathFindingService pathFindingService)
-    {
-        _pathFindingService = pathFindingService;
-    }
-
     [HttpPost("calculate")]
     public async Task<ActionResult<RouteResponse>> CalculatePath([FromBody] RouteRequest request)
     {
         try
         {
-            var result = await _pathFindingService.CalculateOptimalPath(request);
+            var result = await pathFindingService.CalculateOptimalPath(request);
             return Ok(result);
         }
         catch (Exception ex)
