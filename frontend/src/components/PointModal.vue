@@ -32,85 +32,35 @@ const handleCancel = () => {
 </script>
 
 <template>
-  <div v-if="localVisible" class="modal-overlay">
-    <div class="modal-content">
-      <h3>Add Point</h3>
+  <div v-if="localVisible" class="modal modal-open">
+    <div class="modal-box bg-base-100 border border-white/10 shadow-2xl">
+      <h3 class="font-bold text-lg mb-4 flex items-center gap-2 text-primary">
+          <span class="text-2xl">📍</span>
+          ADD NEW POINT
+      </h3>
       
-      <div class="form-group">
-        <label>Name:</label>
-        <input v-model="localForm.name" type="text" placeholder="Enter point name" />
+      <div class="form-control w-full mb-3">
+        <label class="label"><span class="label-text">Point Name</span></label>
+        <input 
+            v-model="localForm.name" 
+            type="text" 
+            placeholder="e.g. Forward Operating Base" 
+            class="input input-bordered w-full" 
+        />
       </div>
 
-      <div class="form-group">
-        <label>Type:</label>
-        <select v-model="localForm.type">
-          <option :value="PointType.Home">Home</option>
-          <option :value="PointType.Target">Target</option>
+      <div class="form-control w-full mb-6">
+        <label class="label"><span class="label-text">Point Type</span></label>
+        <select v-model="localForm.type" class="select select-bordered w-full">
+          <option :value="PointType.Home">🏠 Home Base</option>
+          <option :value="PointType.Target">🎯 Mission Target</option>
         </select>
       </div>
 
-      <div class="modal-actions">
-        <button @click="handleCancel">Cancel</button>
-        <button class="primary" @click="handleSave">Save</button>
+      <div class="modal-action">
+        <button @click="handleCancel" class="btn btn-ghost">Cancel</button>
+        <button @click="handleSave" class="btn btn-primary">Save Point</button>
       </div>
     </div>
   </div>
 </template>
-
-<style scoped>
-.modal-overlay {
-  position: fixed;
-  top: 0; left: 0;
-  width: 100%; height: 100%;
-  background: rgba(0,0,0,0.5);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 2000;
-}
-
-.modal-content {
-  background: #1e1e1e;
-  padding: 20px;
-  border-radius: 8px;
-  min-width: 300px;
-  color: white;
-}
-
-.form-group {
-  margin-bottom: 15px;
-}
-
-label {
-  display: block;
-  margin-bottom: 5px;
-}
-
-input, select {
-  width: 100%;
-  padding: 8px;
-  background: #2d2d2d;
-  border: 1px solid #3d3d3d;
-  color: white;
-  border-radius: 4px;
-}
-
-.modal-actions {
-  display: flex;
-  justify-content: flex-end;
-  gap: 10px;
-  margin-top: 20px;
-}
-
-button {
-  padding: 8px 16px;
-  border-radius: 4px;
-  border: none;
-  cursor: pointer;
-}
-
-button.primary {
-  background: #3B82F6;
-  color: white;
-}
-</style>

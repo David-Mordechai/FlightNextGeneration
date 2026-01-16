@@ -30,6 +30,7 @@ export function useC4ILayer(map: any) {
     });
 
     const isEditingGeometry = ref(false);
+    const isEditing = ref(false);
     const tempLayer = ref<L.Layer | null>(null);
     let drawControlInstance: any = null;
 
@@ -331,6 +332,7 @@ export function useC4ILayer(map: any) {
 
             showNewZoneModal.value = false;
             tempLayer.value = null;
+            setTimeout(() => { if (map.value) map.value.invalidateSize(); }, 100);
         } catch (e) {
             console.error("Save Zone Error Details:", e);
             alert('Failed to save zone: ' + (e instanceof Error ? e.message : String(e)));
@@ -344,6 +346,7 @@ export function useC4ILayer(map: any) {
         showNewZoneModal.value = false;
         tempLayer.value = null;
         newZoneForm.value.id = undefined;
+        setTimeout(() => { if (map.value) map.value.invalidateSize(); }, 100);
     };
 
     const handleDeleteZone = async () => {
@@ -359,6 +362,100 @@ export function useC4ILayer(map: any) {
             console.error(e);
         }
     };
+
+    const startDrawing = (type: 'marker' | 'polygon' | 'rectangle') => {
+        console.log(`Starting drawing mode: ${type}`);
+        if (!map.value) return;
+        
+        // @ts-ignore
+        let handler;
+        if (type === 'marker') {
+             // @ts-ignore
+            handler = new L.Draw.Marker(map.value);
+        } else if (type === 'polygon') {
+             // @ts-ignore
+            handler = new L.Draw.Polygon(map.value, {
+                allowIntersection: false,
+                showArea: false,
+                shapeOptions: { color: '#ff0000' }
+            });
+        } else if (type === 'rectangle') {
+             // @ts-ignore
+            handler = new L.Draw.Rectangle(map.value, {
+                showArea: false,
+                shapeOptions: { color: '#ff0000' }
+            });
+        }
+
+        if (handler) {
+            handler.enable();
+        }
+    };
+
+    const toggleEditMode = () => {
+        if (!drawControlInstance) {
+            console.error("Draw control not initialized");
+            return;
+        }
+        
+        // @ts-ignore
+        const editToolbar = drawControlInstance._toolbars.edit;
+        const editHandler = editToolbar._modes.edit.handler;
+        
+        if (!editHandler) return;
+
+        if (editHandler.enabled()) {
+            editHandler.disable();
+            isEditing.value = false;
+            isEditingGeometry.value = false;
+        } else {
+            editHandler.enable();
+            isEditing.value = true;
+            isEditingGeometry.value = true;
+            console.log("Edit mode enabled. Click entities to edit metadata or drag vertices to edit shape.");
+        }
+    };
+
+    const saveEdits = () => {
+        console.log("Saving changes...");
+        if (!drawControlInstance) return;
+        // @ts-ignore
+        const editToolbar = drawControlInstance._toolbars.edit;
+        
+        try {
+            // Leaflet.Draw internal save triggers EDITED event
+            if (typeof editToolbar.save === 'function') editToolbar.save();
+            else if (typeof editToolbar._save === 'function') editToolbar._save();
+            
+            // Ensure handler is disabled
+            editToolbar._modes.edit.handler.disable();
+        } catch (e) {
+            console.error("Error during save:", e);
+        }
+        
+        isEditing.value = false;
+        isEditingGeometry.value = false;
+    };
+
+    const cancelEdits = () => {
+        console.log("Cancelling changes...");
+        if (!drawControlInstance) return;
+        // @ts-ignore
+        const editToolbar = drawControlInstance._toolbars.edit;
+        
+        try {
+            if (typeof editToolbar.revert === 'function') editToolbar.revert();
+            else if (typeof editToolbar._revert === 'function') editToolbar._revert();
+            
+            editToolbar._modes.edit.handler.disable();
+        } catch (e) {
+            console.error("Error during revert:", e);
+        }
+        
+        isEditing.value = false;
+        isEditingGeometry.value = false;
+    };
+
 
     // --- Point Handlers ---
 
@@ -380,18 +477,26 @@ export function useC4ILayer(map: any) {
         try {
             const saved = await c4iService.createPoint(pointData);
             
-            // Set Icon
+            // Remove temporary drawing layer
+            if (map.value) map.value.removeLayer(layer);
+
+            // Create fresh marker from saved data
+            const lat = saved.location.coordinates[1];
+            const lng = saved.location.coordinates[0];
             const iconUrl = saved.type === PointType.Home ? '/home.svg' : '/target.svg';
-            layer.setIcon(L.icon({
+            
+            const customIcon = L.icon({
                 iconUrl: iconUrl,
                 iconSize: [32, 32],
                 iconAnchor: [16, 16],
                 popupAnchor: [0, -16]
-            }));
+            });
+
+            const newMarker = L.marker([lat, lng], { icon: customIcon });
 
             // Set Properties
              // @ts-ignore
-            layer.feature = {
+            newMarker.feature = {
                 type: 'Feature',
                 properties: {
                     id: saved.id,
@@ -400,16 +505,23 @@ export function useC4ILayer(map: any) {
                     isPoint: true
                 }
             };
-            layer.bindPopup(`<strong>${saved.name}</strong><br>${saved.type === PointType.Home ? 'Home' : 'Target'}`);
-            layer.bindTooltip(saved.name, { 
+            
+            newMarker.bindPopup(`<strong>${saved.name}</strong><br>${saved.type === PointType.Home ? 'Home' : 'Target'}`);
+            newMarker.bindTooltip(saved.name, { 
                 permanent: true, 
                 direction: 'right', 
                 className: 'entity-label'
             });
-            drawnItems.addLayer(layer);
+            
+            drawnItems.addLayer(newMarker);
             
             showPointModal.value = false;
             tempLayer.value = null;
+
+            // Force map update to avoid floating markers
+            setTimeout(() => {
+                if (map.value) map.value.invalidateSize();
+            }, 100);
 
         } catch (e) {
             alert('Failed to save point');
@@ -423,6 +535,7 @@ export function useC4ILayer(map: any) {
         }
         showPointModal.value = false;
         tempLayer.value = null;
+        setTimeout(() => { if (map.value) map.value.invalidateSize(); }, 100);
     };
 
     return {
@@ -442,6 +555,11 @@ export function useC4ILayer(map: any) {
         // Common
         initializeDrawControls,
         loadNoFlyZones,
-        loadPoints
+        loadPoints,
+        startDrawing,
+        toggleEditMode,
+        saveEdits,
+        cancelEdits,
+        isEditing
     };
 }

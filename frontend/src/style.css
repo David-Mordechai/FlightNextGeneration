@@ -1,5 +1,9 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
 :root {
-  font-family: system-ui, Avenir, Helvetica, Arial, sans-serif;
+  font-family: 'Inter', system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
 }
@@ -7,41 +11,23 @@
 body {
   margin: 0;
   padding: 0;
+  overflow: hidden; /* Prevent scrollbars in full-screen app */
 }
 
+/* Custom Entity Label Styles */
 .entity-label {
-
   background-color: transparent !important;
-
   border: none !important;
-
   box-shadow: none !important;
-
   color: #00ffff;
-
   font-weight: bold;
-
   font-size: 13px;
-
   font-family: monospace;
-
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5); /* Less black shadow */
-
+  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
   overflow: visible !important;
-
 }
-
-
 
 /* Hide default tip */
-
 .entity-label .leaflet-tooltip-tip {
-
   display: none;
-
 }
-
-
-
-
-

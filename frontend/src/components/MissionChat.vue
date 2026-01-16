@@ -21,203 +21,66 @@ const scrollToBottom = async () => {
 };
 
 onMounted(() => {
-  // Listen for chat messages from SignalR (for synchronization)
   signalRService.onReceiveChatMessage((user: string, text: string) => {
-    
     messages.value.push({
       user,
       text,
       isSystem: user === 'Mission Control'
     });
-    
     scrollToBottom();
   });
 });
 
 const sendMessage = async () => {
   if (!newMessage.value.trim()) return;
-
   const userMsg = newMessage.value;
   newMessage.value = '';
   await signalRService.sendChatMessage('Commander', userMsg);
-
-};
-
-const toggleChat = () => {
-  isOpen.value = !isOpen.value;
 };
 </script>
 
 <template>
-  <div class="mission-chat" :class="{ 'is-closed': !isOpen }">
-    <div class="chat-header" @click="toggleChat">
-      <div class="title-area">
-        <div class="status-indicator"></div>
-        <span class="title">MISSION CONTROL</span>
-      </div>
-      <span class="toggle-icon">{{ isOpen ? '−' : '+' }}</span>
+  <div class="collapse collapse-arrow bg-gray-900 text-green-400 border border-gray-700 shadow-2xl rounded-none font-mono" :class="{'collapse-open': isOpen, 'collapse-close': !isOpen}">
+    <!-- Removed checkbox, using manual toggle -->
+    <div @click="isOpen = !isOpen" class="collapse-title text-lg font-bold flex items-center gap-3 bg-gray-800 cursor-pointer text-green-500">
+        <div class="w-2 h-2 rounded-full bg-red-500 animate-pulse"></div>
+        <span>COMM_LINK</span>
     </div>
-
-    <div v-show="isOpen" class="chat-body">
-      <div ref="chatContainer" class="messages-container">
-        <div v-for="(msg, index) in messages" :key="index" class="message"
-          :class="{ 'system-msg': msg.isSystem, 'user-msg': !msg.isSystem }">
-          <span class="user">{{ msg.user }}:</span>
-          <span class="text">{{ msg.text }}</span>
+    
+    <div class="collapse-content p-0 flex flex-col bg-gray-900" :style="{ maxHeight: isOpen ? '400px' : '0' }">
+        <div ref="chatContainer" class="flex-1 overflow-y-auto p-4 space-y-3 h-[350px]">
+            <div v-for="(msg, index) in messages" :key="index" class="flex flex-col">
+                <span class="text-[10px] uppercase opacity-50 mb-0.5" :class="msg.isSystem ? 'text-yellow-500' : 'text-blue-400'">
+                    [{{ msg.user }}]
+                </span>
+                <span class="text-sm leading-tight text-gray-300">
+                    {{ msg.text }}
+                </span>
+            </div>
         </div>
-      </div>
-
-      <div class="input-area">
-        <input v-model="newMessage" @keyup.enter="sendMessage" placeholder="Enter command..." type="text" />
-        <button @click="sendMessage">SEND</button>
-      </div>
+        
+        <div class="p-2 bg-gray-800 border-t border-gray-700">
+            <div class="flex gap-2">
+                <span class="text-green-500 py-1">&gt;</span>
+                <input 
+                    v-model="newMessage" 
+                    @keyup.enter="sendMessage"
+                    class="bg-transparent w-full text-green-400 outline-none placeholder-gray-600 text-sm font-mono" 
+                    placeholder="ENTER COMMAND..." 
+                />
+                <button @click="sendMessage" class="text-xs bg-gray-700 hover:bg-gray-600 px-2 py-1 text-white uppercase font-bold border border-gray-600">TX</button>
+            </div>
+        </div>
     </div>
   </div>
 </template>
 
 <style scoped>
-.mission-chat {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  width: 320px;
-  background: rgba(17, 24, 39, 0.75);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 12px;
-  color: #fff;
-  font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
-  z-index: 99999;
-  display: flex;
-  flex-direction: column;
-  transition: all 0.3s ease;
-  overflow: hidden;
-  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
-}
-
-.is-closed {
-  height: 48px;
-}
-
-.chat-header {
-  padding: 12px 16px;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  cursor: pointer;
-}
-
-.title-area {
-  display: flex;
-  align-items: center;
-}
-
-.status-indicator {
-  width: 8px;
-  height: 8px;
-  background-color: #3B82F6;
-  /* Blue for mission control */
-  border-radius: 50%;
-  margin-right: 10px;
-  box-shadow: 0 0 8px #3B82F6;
-}
-
-.title {
-  margin: 0;
-  font-size: 1.1rem;
-  font-weight: 600;
-  letter-spacing: 0.5px;
-  text-transform: uppercase;
-}
-
-.chat-body {
-  height: 350px;
-  display: flex;
-  flex-direction: column;
-}
-
-.messages-container {
-  flex: 1;
-  padding: 12px;
-  overflow-y: auto;
-  display: flex;
-  flex-direction: column;
-  gap: 8px;
-}
-
-.message {
-  font-size: 0.9rem;
-  line-height: 1.4;
-}
-
-.user {
-  font-weight: 600;
-  margin-right: 6px;
-  font-size: 0.7rem;
-  text-transform: uppercase;
-  letter-spacing: 0.5px;
-}
-
-.user-msg .user {
-  color: #60A5FA;
-}
-
-.system-msg .user {
-  color: #10B981;
-}
-
-.text {
-  word-break: break-word;
-  color: #E5E7EB;
-}
-
-.input-area {
-  padding: 16px;
-  display: flex;
-  gap: 8px;
-  background: rgba(0, 0, 0, 0.2);
-  border-top: 1px solid rgba(255, 255, 255, 0.05);
-}
-
-input {
-  flex: 1;
-  background: rgba(255, 255, 255, 0.05);
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  border-radius: 6px;
-  padding: 8px 12px;
-  color: #fff;
-  font-size: 0.9rem;
-}
-
-input:focus {
-  outline: none;
-  border-color: #3B82F6;
-}
-
-button {
-  background: #2563EB;
-  border: none;
-  border-radius: 6px;
-  color: #fff;
-  padding: 0 16px;
-  cursor: pointer;
-  font-weight: 600;
-  font-size: 0.75rem;
-  letter-spacing: 0.5px;
-}
-
-button:hover {
-  background: #1D4ED8;
-}
-
-/* Scrollbar */
-.messages-container::-webkit-scrollbar {
+/* Custom scrollbar for chat */
+.collapse-content > div::-webkit-scrollbar {
   width: 4px;
 }
-
-.messages-container::-webkit-scrollbar-thumb {
+.collapse-content > div::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.1);
   border-radius: 2px;
 }

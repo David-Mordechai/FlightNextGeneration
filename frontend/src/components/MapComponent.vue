@@ -7,6 +7,7 @@ import { setupLeafletPatches } from '../utils/leafletSetup';
 import { useFlightVisualization } from '../composables/useFlightLayer';
 import { useC4ILayer } from '../composables/useC4ILayer';
 
+import MainLayout from './MainLayout.vue';
 import FlightDataOverlay from './FlightDataOverlay.vue';
 import MissionChat from './MissionChat.vue';
 import NoFlyZoneModal from './NoFlyZoneModal.vue';
@@ -14,6 +15,7 @@ import PointModal from './PointModal.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const map = ref<L.Map | null>(null);
+let resizeObserver: ResizeObserver | null = null;
 
 // Composables
 const { 
@@ -34,7 +36,12 @@ const {
     handleCancelZone, 
     handleDeleteZone,
     handleSavePoint,
-    handleCancelPoint
+    handleCancelPoint,
+    startDrawing,
+    toggleEditMode,
+    saveEdits,
+    cancelEdits,
+    isEditing
 } = useC4ILayer(map);
 
 onMounted(async () => {
@@ -50,8 +57,11 @@ onMounted(async () => {
     L.control.zoom({ position: 'bottomright' }).addTo(leafletMap);
     map.value = leafletMap;
 
-    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+    // Light Matter Tiles (Voyager)
+    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
+      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
+      subdomains: 'abcd',
+      maxZoom: 20
     }).addTo(leafletMap);
 
     // 3. Initialize Layers & Controls
@@ -59,51 +69,85 @@ onMounted(async () => {
     await loadNoFlyZones();
     await loadPoints();
     initializeFlightListeners();
+
+    // 4. Handle resizing (Sidebar/Window)
+    resizeObserver = new ResizeObserver(() => {
+        leafletMap.invalidateSize();
+    });
+    resizeObserver.observe(mapContainer.value);
   }
 });
 
 onUnmounted(async () => {
+  if (resizeObserver) resizeObserver.disconnect();
   await stopFlightListeners();
 });
 </script>
 
 <template>
-  <div class="map-wrapper">
-    <div ref="mapContainer" class="map-container"></div>
-    
-    <FlightDataOverlay 
-      v-if="currentFlightData"
-      v-bind="currentFlightData"
-    />
-    
-    <MissionChat />
+  <MainLayout 
+    :is-editing="isEditing"
+    @create-point="startDrawing('marker')"
+    @create-zone="startDrawing('polygon')"
+    @create-rectangle="startDrawing('rectangle')"
+    @toggle-edit="toggleEditMode"
+    @save-edits="saveEdits"
+    @cancel-edits="cancelEdits"
+  >
+    <template #map>
+      <div ref="mapContainer" class="h-full w-full"></div>
+    </template>
 
-    <NoFlyZoneModal
-      v-model:visible="showNewZoneModal"
-      v-model:form="newZoneForm"
-      @save="handleSaveZone"
-      @cancel="handleCancelZone"
-      @delete="handleDeleteZone"
-    />
+    <template #telemetry>
+        <FlightDataOverlay 
+          v-if="currentFlightData"
+          v-bind="currentFlightData"
+        />
+    </template>
 
-    <PointModal
-      v-model:visible="showPointModal"
-      v-model:form="newPointForm"
-      @save="handleSavePoint"
-      @cancel="handleCancelPoint"
-    />
-  </div>
+    <template #chat>
+        <MissionChat />
+    </template>
+  </MainLayout>
+
+  <NoFlyZoneModal
+    v-model:visible="showNewZoneModal"
+    v-model:form="newZoneForm"
+    @save="handleSaveZone"
+    @cancel="handleCancelZone"
+    @delete="handleDeleteZone"
+  />
+
+  <PointModal
+    v-model:visible="showPointModal"
+    v-model:form="newPointForm"
+    @save="handleSavePoint"
+    @cancel="handleCancelPoint"
+  />
 </template>
 
 <style scoped>
-.map-wrapper {
-  position: relative;
-  height: 100vh;
-  width: 100%;
+/* Leaflet Draw overrides */
+:deep(.leaflet-draw-toolbar a) {
+  background-color: #1f2937; 
+  border-color: #374151; 
+  color: #e5e7eb; 
 }
-.map-container {
-  height: 100%;
-  width: 100%;
-  z-index: 1;
+:deep(.leaflet-draw-toolbar a:hover) {
+  background-color: #374151; 
+}
+:deep(.leaflet-bar) {
+  border: none;
+  box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.5);
+}
+
+/* Hide default Draw Toolbar since we use Sidebar */
+:deep(.leaflet-draw) {
+    display: none !important;
+}
+
+/* Push controls down to avoid Navbar overlap */
+:deep(.leaflet-top.leaflet-left) {
+  top: 80px;
 }
 </style>
