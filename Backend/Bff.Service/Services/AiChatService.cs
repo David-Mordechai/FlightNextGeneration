@@ -29,6 +29,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                                                5. If you want to use a tool, use the formal tool-calling mechanism.
                                                6. Use tool response to formulate the answer to the user.
                                                7. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
+                                               8. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
                                                """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
