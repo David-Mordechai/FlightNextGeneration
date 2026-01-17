@@ -4,13 +4,14 @@ using Microsoft.Extensions.AI;
 using ModelContextProtocol.Client;
 using OllamaSharp;
 using OpenAI;
+using System.Collections.Concurrent;
 
 namespace Bff.Service.Services;
 
 public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 {
     private IChatClient? _chatClient;
-    private IList<McpClientTool> _tools = [];
+    private readonly ConcurrentDictionary<string, IList<McpClientTool>> _connectedTools = new();
     private readonly List<ChatMessage> _chatHistory = [];
 
     private const string SystemInstructions = """
@@ -37,10 +38,14 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                 _chatHistory.Add(new ChatMessage(ChatRole.System, SystemInstructions));
             }
 
-            var mcpEndpoint = config["McpServerUrl"] ?? "http://mcpserver.flightcontrol:8080";
+            var mcpEndpoints = config["McpServerUrl"]?.Split(';', StringSplitOptions.RemoveEmptyEntries) 
+                               ?? ["http://mcpserver.flightcontrol:8080"];
             
-            // Start background connection retry loop
-            _ = ConnectToMcpServerAsync(mcpEndpoint);
+            // Start background connection retry loop for each endpoint
+            foreach (var endpoint in mcpEndpoints)
+            {
+                _ = ConnectToMcpServerAsync(endpoint.Trim());
+            }
         }
         catch (Exception e)
         {
@@ -62,11 +67,12 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                     }));
 
                 // List all available tools from the MCP server.
-                logger.LogInformation("Connected to MCP Server. Fetching tools...");
-                _tools = await mcpClient.ListToolsAsync();
+                logger.LogInformation("Connected to MCP Server at {Endpoint}. Fetching tools...", mcpEndpoint);
+                var tools = await mcpClient.ListToolsAsync();
+                _connectedTools[mcpEndpoint] = tools;
                 
-                logger.LogInformation("MCP Tools loaded successfully:");
-                foreach (var tool in _tools)
+                logger.LogInformation("MCP Tools loaded successfully from {Endpoint}:", mcpEndpoint);
+                foreach (var tool in tools)
                 {
                     logger.LogInformation("Tool available: {Tool}", tool);
                 }
@@ -74,7 +80,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             }
             catch (Exception ex)
             {
-                logger.LogWarning(ex, "Failed to connect to MCP Server. Retrying in 5 seconds...");
+                logger.LogWarning(ex, "Failed to connect to MCP Server at {Endpoint}. Retrying in 5 seconds...", mcpEndpoint);
                 await Task.Delay(5000);
             }
         }
@@ -107,10 +113,13 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 
         try
         {
+            // Aggregate tools from all connected MCP servers
+            var allTools = _connectedTools.Values.SelectMany(t => t).ToList();
+
             // Use non-streaming response for better tool-calling reliability with llama
             var response = await _chatClient.GetResponseAsync(_chatHistory, new ChatOptions
             {
-                Tools = [.. _tools]
+                Tools = allTools
             });
 
             // Let's try to get the text from the response safely.

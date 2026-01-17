@@ -27,7 +27,7 @@ services:
       - OpenAIKey=${OPENAI_KEY}
       - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
       - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
-      - McpServerUrl=http://mcpserver.flightcontrol:8080
+      - McpServerUrl=http://mcpserver.flightcontrol:8080;http://mcpserver.missioncontrol:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -48,6 +48,14 @@ services:
       dockerfile: McpServer.FlightControl/Dockerfile
     environment:
       - BffServiceUrl=http://bff.service:8080
+      - C4IServiceUrl=http://c4ientities:8080
+
+  mcpserver.missioncontrol:
+    image: ${DOCKER_REGISTRY-}mcpservermissioncontrol
+    build:
+      context: .
+      dockerfile: McpServer.MissionControl/Dockerfile
+    environment:
       - C4IServiceUrl=http://c4ientities:8080
 
 volumes:

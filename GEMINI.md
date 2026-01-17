@@ -28,7 +28,9 @@ Next-generation flight control and visualization system with C4I entity manageme
     - Added `ResizeObserver` and map synchronization to handle sidebar layout.
     - **Fixed "Floating Points" Bug:** Converted map and layer references to `shallowRef` to prevent Vue Proxying from breaking Leaflet's internal identity checks (`===`), ensuring temporary layers are correctly removed.
     - **Backend Update:** Added `PUT` endpoint to `PointsController` to support point entity updates.
-    - **Entity Editing:** Implemented full edit support for Points (click to edit properties, drag to move). Fixed `Leaflet.Draw` crashes and artifact issues during updates.
+    - **New Microservice:** Implemented `McpServer.MissionControl`, an MCP server for chat-based entity management (Create, List, Delete points).
+    - **BFF Update:** Enhanced `AiChatService` to support multiple aggregated MCP servers.
+    - **Entity Editing:** Implemented full edit support for Points (click to edit, drag to move). Fixed `Leaflet.Draw` crashes and artifact issues during updates.
     - **UI/UX Overhaul:**
         - **Sidebar:** Made sidebar collapsible with non-blocking overlay for simultaneous map interaction. Improved toggle buttons and layout.
         - **HUD Dashboard:** Redesigned Telemetry and Mission Control components with an ultra-minimalist, high-contrast "Glass Cockpit" aesthetic.

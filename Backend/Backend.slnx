@@ -5,4 +5,5 @@
     <Build />
   </Project>
   <Project Path="McpServer.FlightControl/McpServer.FlightControl.csproj" Id="c29bb127-5a08-4d8f-8b25-68747c248237" />
+  <Project Path="McpServer.MissionControl/McpServer.MissionControl.csproj" />
 </Solution>
