@@ -1,4 +1,4 @@
-import { ref } from 'vue';
+import { ref, shallowRef } from 'vue';
 import L from 'leaflet';
 import { c4iService, type NoFlyZone, type Point, PointType } from '../services/C4IService';
 
@@ -31,7 +31,7 @@ export function useC4ILayer(map: any) {
 
     const isEditingGeometry = ref(false);
     const isEditing = ref(false);
-    const tempLayer = ref<L.Layer | null>(null);
+    const tempLayer = shallowRef<L.Layer | null>(null);
     let drawControlInstance: any = null;
 
     const initializeDrawControls = (leafletMap: L.Map) => {
