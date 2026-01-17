@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref } from 'vue';
+import { onMounted, onUnmounted, ref, shallowRef } from 'vue';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -14,7 +14,7 @@ import NoFlyZoneModal from './NoFlyZoneModal.vue';
 import PointModal from './PointModal.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
-const map = ref<L.Map | null>(null);
+const map = shallowRef<L.Map | null>(null);
 let resizeObserver: ResizeObserver | null = null;
 
 // Composables
