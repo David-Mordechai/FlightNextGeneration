@@ -43,6 +43,10 @@ class SignalRService {
     this.connection.on("ReceiveChatMessage", callback);
   }
 
+  public onEntityUpdate(callback: (update: { entityType: string; changeType: string; data: any }) => void): void {
+    this.connection.on("EntityUpdateReceived", callback);
+  }
+
   public on(eventName: string, callback: (...args: any[]) => void): void {
     this.connection.on(eventName, callback);
   }

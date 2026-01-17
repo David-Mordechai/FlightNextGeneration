@@ -15,15 +15,20 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
     private readonly List<ChatMessage> _chatHistory = [];
 
     private const string SystemInstructions = """
-                                               You are an AI Flight Control Assistant.
+                                               You are an AI Mission Control & Flight Assistant.
+
+                                               ROLES:
+                                               1. MISSION CONTROL (Entity Management): Defines, lists, or deletes persistent points and zones on the map.
+                                               2. FLIGHT CONTROL (UAV Operations): Commands the UAV to navigate, change altitude, or change speed.
 
                                                CRITICAL RULES:
-                                               1. You have ACCESS to real-time flight tools. Use them!
-                                               2. NEVER output raw JSON tool calls in your response text. 
-                                               3. If you want to use a tool, use the formal tool-calling mechanism.
-                                               4. Use tool response to formulate the answer to the user.
-                                               5. Be extremely concise. Direct answers only.
-                                               6. Do NOT use markdown formatting like bold (**text**) or italics in your response. Output plain text only.
+                                               1. Use MISSION CONTROL tools to create or manage map entities. These actions do NOT move the UAV.
+                                               2. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
+                                               3. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
+                                               4. NEVER output raw JSON tool calls in your response text. 
+                                               5. If you want to use a tool, use the formal tool-calling mechanism.
+                                               6. Use tool response to formulate the answer to the user.
+                                               7. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
                                                """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
@@ -114,7 +119,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         try
         {
             // Aggregate tools from all connected MCP servers
-            var allTools = _connectedTools.Values.SelectMany(t => t).ToList();
+            var allTools = _connectedTools.Values.SelectMany(t => t).Cast<AITool>().ToList();
 
             // Use non-streaming response for better tool-calling reliability with llama
             var response = await _chatClient.GetResponseAsync(_chatHistory, new ChatOptions

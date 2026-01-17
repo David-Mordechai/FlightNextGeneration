@@ -28,6 +28,7 @@ const {
     zones,
     points,
     deleteEntity,
+    initializeRealtimeUpdates,
     showNewZoneModal, 
     newZoneForm,
     showPointModal,
@@ -72,6 +73,7 @@ onMounted(async () => {
     await loadNoFlyZones();
     await loadPoints();
     initializeFlightListeners();
+    initializeRealtimeUpdates();
 
     // 4. Handle resizing (Sidebar/Window)
     resizeObserver = new ResizeObserver(() => {

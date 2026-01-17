@@ -1,6 +1,7 @@
 import { ref, shallowRef } from 'vue';
 import L from 'leaflet';
 import { c4iService, type NoFlyZone, type Point, PointType } from '../services/C4IService';
+import { signalRService } from '../services/SignalRService';
 
 export function useC4ILayer(map: any) {
     const drawnItems = new L.FeatureGroup();
@@ -603,11 +604,64 @@ export function useC4ILayer(map: any) {
         setTimeout(() => { if (map.value) map.value.invalidateSize(); }, 100);
     };
 
+    const handleEntityUpdate = (update: { entityType: string; changeType: string; data: any }) => {
+        console.log("Received Entity Update:", update);
+        
+        if (update.entityType === 'Point') {
+            if (update.changeType === 'Created') {
+                const newPoint = update.data as Point;
+                points.value.push(newPoint);
+                if (newPoint.location) {
+                    const layer = createMarkerFromPoint(newPoint);
+                    drawnItems.addLayer(layer);
+                }
+            } else if (update.changeType === 'Deleted') {
+                const id = update.data.id || update.data.Id;
+                points.value = points.value.filter(p => p.id !== id);
+                drawnItems.eachLayer((layer: any) => {
+                    if (layer.feature?.properties?.id === id) {
+                        drawnItems.removeLayer(layer);
+                    }
+                });
+            }
+        } else if (update.entityType === 'NoFlyZone') {
+             if (update.changeType === 'Created') {
+                const newZone = update.data as NoFlyZone;
+                zones.value.push(newZone);
+                if (newZone.geometry) {
+                    const layer = L.geoJSON(newZone.geometry, {
+                        style: { color: '#ff0000', weight: 2, fillOpacity: 0.2 }
+                    });
+                    addNonGroupLayers(layer, {
+                        id: newZone.id,
+                        name: newZone.name,
+                        minAltitude: newZone.minAltitude,
+                        maxAltitude: newZone.maxAltitude,
+                        isPoint: false
+                    });
+                }
+            } else if (update.changeType === 'Deleted') {
+                const id = update.data.id || update.data.Id;
+                zones.value = zones.value.filter(z => z.id !== id);
+                drawnItems.eachLayer((layer: any) => {
+                    if (layer.feature?.properties?.id === id) {
+                        drawnItems.removeLayer(layer);
+                    }
+                });
+            }
+        }
+    };
+
+    const initializeRealtimeUpdates = () => {
+        signalRService.onEntityUpdate(handleEntityUpdate);
+    };
+
     return {
         // Data
         zones,
         points,
         deleteEntity,
+        initializeRealtimeUpdates,
 
         // NoFlyZone exports
         showNewZoneModal,

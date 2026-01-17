@@ -57,6 +57,7 @@ services:
       dockerfile: McpServer.MissionControl/Dockerfile
     environment:
       - C4IServiceUrl=http://c4ientities:8080
+      - BffServiceUrl=http://bff.service:8080
 
 volumes:
   postgres_data:
