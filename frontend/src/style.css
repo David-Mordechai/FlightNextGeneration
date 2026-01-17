@@ -25,9 +25,11 @@ body {
   font-family: monospace;
   text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
   overflow: visible !important;
+  margin: 0 !important;
 }
 
 /* Hide default tip */
-.entity-label .leaflet-tooltip-tip {
-  display: none;
+.entity-label .leaflet-tooltip-tip,
+.entity-label::before {
+  display: none !important;
 }

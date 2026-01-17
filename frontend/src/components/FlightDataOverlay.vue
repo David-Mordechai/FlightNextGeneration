@@ -10,40 +10,37 @@ defineProps<{
 </script>
 
 <template>
-  <div class="card w-64 bg-base-100/70 backdrop-blur-md shadow-xl border border-white/10">
-    <div class="card-body p-4 gap-1">
-      <div class="flex items-center justify-between mb-2">
-          <h2 class="card-title text-xs font-mono font-bold tracking-widest text-primary">{{ flightId }}</h2>
+  <div class="p-5 bg-base-100/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl w-60 text-slate-100">
+    <!-- Primary Stats -->
+    <div class="grid grid-cols-2 gap-4 mb-4">
+      <div class="flex flex-col gap-1">
+        <span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Altitude</span>
+        <div class="flex items-baseline">
+          <span class="text-3xl font-mono font-black leading-none text-white">{{ Math.round(altitude) }}</span>
+          <span class="text-[10px] text-white/20 ml-1 font-bold">FT</span>
+        </div>
       </div>
-      
-      <!-- Stats Grid -->
-      <div class="grid grid-cols-2 gap-4">
-          <!-- Altitude -->
-          <div class="flex flex-col">
-              <span class="text-[10px] uppercase font-bold text-info tracking-wider opacity-70">ALT (ft)</span>
-              <span class="text-xl font-mono font-bold">{{ Math.round(altitude) }}</span>
-              <progress class="progress progress-info w-full h-1 mt-1" :value="altitude" max="10000"></progress>
-          </div>
-          
-          <!-- Speed -->
-          <div class="flex flex-col">
-              <span class="text-[10px] uppercase font-bold text-success tracking-wider opacity-70">SPD (kts)</span>
-              <span class="text-xl font-mono font-bold">{{ Math.round(speed) }}</span>
-              <progress class="progress progress-success w-full h-1 mt-1" :value="speed" max="300"></progress>
-          </div>
+      <div class="flex flex-col gap-1 text-right">
+        <span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Speed</span>
+        <div class="flex items-baseline justify-end">
+          <span class="text-3xl font-mono font-black leading-none text-white">{{ Math.round(speed) }}</span>
+          <span class="text-[10px] text-white/20 ml-1 font-bold">KTS</span>
+        </div>
       </div>
+    </div>
 
-      <div class="divider my-2 opacity-50"></div>
-
-      <!-- Heading -->
-      <div class="flex items-center justify-between">
-          <span class="text-[10px] uppercase font-bold text-warning tracking-wider">HDG</span>
-          <span class="font-mono text-lg font-bold text-warning">{{ Math.round(heading) }}°</span>
+    <!-- Footer: Heading and Coordinates -->
+    <div class="flex items-center justify-between border-t border-white/5 pt-4">
+      <div class="flex flex-col gap-0.5">
+          <span class="text-[8px] font-bold uppercase tracking-widest text-white/40">Heading</span>
+          <span class="text-xl font-mono font-black text-white leading-none">{{ Math.round(heading) }}°</span>
       </div>
-      
-      <!-- Coordinates -->
-      <div class="mt-2 text-[10px] font-mono opacity-50 bg-black/20 p-1 rounded text-center">
-          {{ lat.toFixed(5) }}, {{ lng.toFixed(5) }}
+      <div class="flex flex-col gap-0.5 text-right">
+          <span class="text-[8px] font-bold uppercase tracking-widest text-white/40">Position</span>
+          <div class="flex flex-col font-mono text-[11px] text-white/60 leading-tight">
+            <span>{{ lat.toFixed(4) }}°N</span>
+            <span>{{ lng.toFixed(4) }}°E</span>
+          </div>
       </div>
     </div>
   </div>

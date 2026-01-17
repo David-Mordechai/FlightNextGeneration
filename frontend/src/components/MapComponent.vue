@@ -25,6 +25,9 @@ const {
 } = useFlightVisualization(map);
 
 const { 
+    zones,
+    points,
+    deleteEntity,
     showNewZoneModal, 
     newZoneForm,
     showPointModal,
@@ -87,12 +90,15 @@ onUnmounted(async () => {
 <template>
   <MainLayout 
     :is-editing="isEditing"
+    :points="points"
+    :zones="zones"
     @create-point="startDrawing('marker')"
     @create-zone="startDrawing('polygon')"
     @create-rectangle="startDrawing('rectangle')"
     @toggle-edit="toggleEditMode"
     @save-edits="saveEdits"
     @cancel-edits="cancelEdits"
+    @delete-entity="deleteEntity"
   >
     <template #map>
       <div ref="mapContainer" class="h-full w-full"></div>

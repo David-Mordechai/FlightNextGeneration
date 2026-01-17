@@ -93,6 +93,19 @@ export const c4iService = {
         return response.json();
     },
 
+    async updatePoint(id: string, point: Point): Promise<void> {
+        const response = await fetch(`${POINTS_API_URL}/${id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(point)
+        });
+        if (!response.ok) {
+            throw new Error('Failed to update Point');
+        }
+    },
+
     async deletePoint(id: string): Promise<void> {
         const response = await fetch(`${POINTS_API_URL}/${id}`, {
             method: 'DELETE'

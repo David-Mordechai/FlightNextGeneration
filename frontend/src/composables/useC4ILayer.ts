@@ -5,6 +5,10 @@ import { c4iService, type NoFlyZone, type Point, PointType } from '../services/C
 export function useC4ILayer(map: any) {
     const drawnItems = new L.FeatureGroup();
     
+    // Data State
+    const zones = ref<NoFlyZone[]>([]);
+    const points = ref<Point[]>([]);
+
     // No Fly Zone State
     const showNewZoneModal = ref(false);
     const newZoneForm = ref<{
@@ -112,8 +116,31 @@ export function useC4ILayer(map: any) {
                      // Determine if it's a zone or a point based on geometry type
                      const geoJson = layer.toGeoJSON();
                      if (geoJson.geometry.type === 'Point') {
-                        // It's a Point
-                         console.log('Point update not fully implemented via drag yet, pending requirement');
+                        // It's a Point - Handle Drag Update
+                        const latLng = layer.getLatLng();
+                        const currentPoint = points.value.find(p => p.id === id);
+                        
+                        if (currentPoint) {
+                            const updatedPoint: Point = {
+                                ...currentPoint,
+                                location: {
+                                    type: 'Point',
+                                    coordinates: [latLng.lng, latLng.lat]
+                                }
+                            };
+
+                            try {
+                                await c4iService.updatePoint(id, updatedPoint);
+                                // Update local state
+                                const idx = points.value.findIndex(p => p.id === id);
+                                if (idx !== -1) points.value[idx] = updatedPoint;
+                                console.log(`Point ${id} updated location`);
+                            } catch (err) {
+                                console.error(`Failed to update point ${id}`, err);
+                                // Revert position on error? (Optional, but complex to implement without reload)
+                                alert(`Failed to move point: ${currentPoint.name}`);
+                            }
+                        }
                      } else {
                         // It's a NoFlyZone
                         const updatedZone: NoFlyZone = {
@@ -160,10 +187,59 @@ export function useC4ILayer(map: any) {
         });
     };
 
+    const createMarkerFromPoint = (point: Point) => {
+        const lat = point.location.coordinates[1];
+        const lng = point.location.coordinates[0];
+        const iconUrl = point.type === PointType.Home ? '/home.svg' : '/target.svg';
+        
+        const customIcon = L.icon({
+            iconUrl: iconUrl,
+            iconSize: [32, 32],
+            iconAnchor: [16, 16],
+            popupAnchor: [0, -16]
+        });
+
+        const marker = L.marker([lat, lng], { icon: customIcon });
+
+        // @ts-ignore
+        marker.feature = {
+            type: 'Feature',
+            properties: {
+                id: point.id,
+                name: point.name,
+                type: point.type,
+                isPoint: true
+            }
+        };
+
+        marker.bindPopup(`<strong>${point.name}</strong><br>${point.type === PointType.Home ? 'Home' : 'Target'}`);
+        marker.bindTooltip(point.name, { 
+            permanent: true, 
+            direction: 'bottom', 
+            offset: [0, 10],
+            className: 'entity-label'
+        });
+
+        marker.on('click', () => {
+                if (!isEditingGeometry.value) return;
+
+                tempLayer.value = marker;
+                newPointForm.value = {
+                    id: point.id,
+                    name: point.name,
+                    type: point.type
+                };
+                showPointModal.value = true;
+        });
+        
+        return marker;
+    };
+
     const loadNoFlyZones = async () => {
         try {
-            const zones = await c4iService.getAll();
-            zones.forEach(zone => {
+            const fetchedZones = await c4iService.getAll();
+            zones.value = fetchedZones;
+            fetchedZones.forEach(zone => {
                 if (zone.geometry) {
                     const layer = L.geoJSON(zone.geometry, {
                         style: { color: '#ff0000', weight: 2, fillOpacity: 0.2 }
@@ -185,40 +261,11 @@ export function useC4ILayer(map: any) {
     
     const loadPoints = async () => {
         try {
-            const points = await c4iService.getAllPoints();
-            points.forEach(point => {
+            const fetchedPoints = await c4iService.getAllPoints();
+            points.value = fetchedPoints;
+            fetchedPoints.forEach(point => {
                 if (point.location) {
-                    const iconUrl = point.type === PointType.Home ? '/home.svg' : '/target.svg';
-                    const customIcon = L.icon({
-                        iconUrl: iconUrl,
-                        iconSize: [32, 32],
-                        iconAnchor: [16, 16],
-                        popupAnchor: [0, -16]
-                    });
-
-                    // Create marker directly
-                    const lat = point.location.coordinates[1];
-                    const lng = point.location.coordinates[0];
-                    const layer = L.marker([lat, lng], { icon: customIcon });
-
-                    // Add properties
-                    // @ts-ignore
-                    layer.feature = {
-                        type: 'Feature',
-                        properties: {
-                            id: point.id,
-                            name: point.name,
-                            type: point.type,
-                            isPoint: true
-                        }
-                    };
-
-                    layer.bindPopup(`<strong>${point.name}</strong><br>${point.type === PointType.Home ? 'Home' : 'Target'}`);
-                    layer.bindTooltip(point.name, { 
-                        permanent: true, 
-                        direction: 'right', 
-                        className: 'entity-label'
-                    });
+                    const layer = createMarkerFromPoint(point);
                     drawnItems.addLayer(layer);
                 }
             });
@@ -241,7 +288,7 @@ export function useC4ILayer(map: any) {
             sourceLayer.bindPopup(`<strong>${properties.name}</strong><br>Alt: ${properties.minAltitude}-${properties.maxAltitude}ft`);
             sourceLayer.bindTooltip(properties.name, { 
                 permanent: true, 
-                direction: 'right', 
+                direction: 'center', 
                 className: 'entity-label'
             });
             
@@ -297,6 +344,10 @@ export function useC4ILayer(map: any) {
                 // UPDATE
                 await c4iService.update(newZoneForm.value.id, zoneData);
                 
+                // Update local state
+                const idx = zones.value.findIndex(z => z.id === newZoneForm.value.id);
+                if (idx !== -1) zones.value[idx] = { ...zoneData, id: newZoneForm.value.id }; // ensure ID is set
+
                 // Update visuals
                 if (layer.feature && layer.feature.properties) {
                     layer.feature.properties.name = zoneData.name;
@@ -315,6 +366,8 @@ export function useC4ILayer(map: any) {
             } else {
                 // CREATE
                 const saved = await c4iService.create(zoneData);
+                zones.value.push(saved);
+
                 const savedLayer = L.geoJSON(saved.geometry, {
                     style: { color: '#ff0000', weight: 2, fillOpacity: 0.2 }
                 });
@@ -349,18 +402,34 @@ export function useC4ILayer(map: any) {
         setTimeout(() => { if (map.value) map.value.invalidateSize(); }, 100);
     };
 
+    const deleteEntity = async (id: string, isPoint: boolean) => {
+        try {
+            if (isPoint) {
+                await c4iService.deletePoint(id);
+                points.value = points.value.filter(p => p.id !== id);
+            } else {
+                await c4iService.delete(id);
+                zones.value = zones.value.filter(z => z.id !== id);
+            }
+            
+            // Remove from Map
+            drawnItems.eachLayer((layer: any) => {
+                if (layer.feature?.properties?.id === id) {
+                    drawnItems.removeLayer(layer);
+                }
+            });
+            console.log(`Deleted entity ${id}`);
+        } catch (e) {
+            console.error("Failed to delete entity", e);
+            alert("Failed to delete entity");
+        }
+    };
+
     const handleDeleteZone = async () => {
         if (!newZoneForm.value.id || !tempLayer.value) return;
-        
-        try {
-            await c4iService.delete(newZoneForm.value.id);
-            drawnItems.removeLayer(tempLayer.value as L.Layer);
-            showNewZoneModal.value = false;
-            tempLayer.value = null;
-        } catch (e) {
-            alert('Failed to delete zone');
-            console.error(e);
-        }
+        await deleteEntity(newZoneForm.value.id, false);
+        showNewZoneModal.value = false;
+        tempLayer.value = null;
     };
 
     const startDrawing = (type: 'marker' | 'polygon' | 'rectangle') => {
@@ -466,6 +535,7 @@ export function useC4ILayer(map: any) {
         const latLng = layer.getLatLng();
 
         const pointData: Point = {
+            id: newPointForm.value.id,
             name: newPointForm.value.name,
             type: newPointForm.value.type,
             location: {
@@ -475,50 +545,45 @@ export function useC4ILayer(map: any) {
         };
 
         try {
-            const saved = await c4iService.createPoint(pointData);
-            
-            // Remove temporary drawing layer
-            if (map.value) map.value.removeLayer(layer);
+            let savedPoint: Point;
 
-            // Create fresh marker from saved data
-            const lat = saved.location.coordinates[1];
-            const lng = saved.location.coordinates[0];
-            const iconUrl = saved.type === PointType.Home ? '/home.svg' : '/target.svg';
-            
-            const customIcon = L.icon({
-                iconUrl: iconUrl,
-                iconSize: [32, 32],
-                iconAnchor: [16, 16],
-                popupAnchor: [0, -16]
-            });
+            if (newPointForm.value.id) {
+                // UPDATE
+                await c4iService.updatePoint(newPointForm.value.id, pointData);
+                savedPoint = pointData; 
 
-            const newMarker = L.marker([lat, lng], { icon: customIcon });
+                // Update Local State
+                const idx = points.value.findIndex(p => p.id === pointData.id);
+                if (idx !== -1) points.value[idx] = savedPoint;
 
-            // Set Properties
-             // @ts-ignore
-            newMarker.feature = {
-                type: 'Feature',
-                properties: {
-                    id: saved.id,
-                    name: saved.name,
-                    type: saved.type,
-                    isPoint: true
+                // Safely remove old marker
+                try {
+                    // @ts-ignore
+                    if (layer.editing && layer.editing.enabled()) {
+                        // @ts-ignore
+                        layer.editing.disable();
+                    }
+                    drawnItems.removeLayer(layer);
+                } catch (cleanupError) {
+                    // Ignored: Leaflet Draw internal error during cleanup
                 }
-            };
-            
-            newMarker.bindPopup(`<strong>${saved.name}</strong><br>${saved.type === PointType.Home ? 'Home' : 'Target'}`);
-            newMarker.bindTooltip(saved.name, { 
-                permanent: true, 
-                direction: 'right', 
-                className: 'entity-label'
-            });
-            
+            } else {
+                // CREATE
+                savedPoint = await c4iService.createPoint(pointData);
+                points.value.push(savedPoint);
+                
+                // Remove temporary drawing layer (blue pin)
+                if (map.value) map.value.removeLayer(layer);
+            }
+
+            // Create and Add the new/updated marker
+            const newMarker = createMarkerFromPoint(savedPoint);
             drawnItems.addLayer(newMarker);
             
             showPointModal.value = false;
             tempLayer.value = null;
 
-            // Force map update to avoid floating markers
+            // Force map update
             setTimeout(() => {
                 if (map.value) map.value.invalidateSize();
             }, 100);
@@ -539,6 +604,11 @@ export function useC4ILayer(map: any) {
     };
 
     return {
+        // Data
+        zones,
+        points,
+        deleteEntity,
+
         // NoFlyZone exports
         showNewZoneModal,
         newZoneForm,
