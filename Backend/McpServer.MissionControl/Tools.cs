@@ -40,7 +40,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Define a new persistent operational point (Home or Target) on the map. This tool ONLY creates the map entity and does NOT command the UAV to fly.")]
+    [McpServerTool, Description("Define a new persistent operational point (Home or Target) on the map. REQUIRES explicit Latitude and Longitude from the user. Do NOT use this tool if the user did not provide coordinates.")]
     public async Task<string> CreatePoint(
         [Description("Name of the point (e.g., 'Alpha', 'Base')."), Required] string name,
         [Description("Type of point: 'Home' or 'Target'."), Required] string type,

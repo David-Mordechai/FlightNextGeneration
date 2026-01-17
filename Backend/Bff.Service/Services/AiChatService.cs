@@ -15,22 +15,25 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
     private readonly List<ChatMessage> _chatHistory = [];
 
     private const string SystemInstructions = """
-                                               You are an AI Mission Control & Flight Assistant.
+        You are an AI Mission Control & Flight Assistant.
 
-                                               ROLES:
-                                               1. MISSION CONTROL (Entity Management): Defines, lists, or deletes persistent points and zones on the map.
-                                               2. FLIGHT CONTROL (UAV Operations): Commands the UAV to navigate, change altitude, or change speed.
+        ROLES:
+        1. MISSION CONTROL (Entity Management): Defines, lists, or deletes persistent points and zones on the map.
+        2. FLIGHT CONTROL (UAV Operations): Commands the UAV to navigate, change altitude, or change speed.
 
-                                               CRITICAL RULES:
-                                               1. Use MISSION CONTROL tools to create or manage map entities. These actions do NOT move the UAV.
-                                               2. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
-                                               3. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
-                                               4. NEVER output raw JSON tool calls in your response text. 
-                                               5. If you want to use a tool, use the formal tool-calling mechanism.
-                                               6. Use tool response to formulate the answer to the user.
-                                               7. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
-                                               8. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
-                                               """;
+        CRITICAL RULES:
+        1. Use MISSION CONTROL tools to create or manage map entities. These actions do NOT move the UAV.
+        2. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
+        3. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
+        4. NEVER output raw JSON tool calls in your response text. 
+        5. If you want to use a tool, use the formal tool-calling mechanism.
+        6. Use tool response to formulate the answer to the user.
+        7. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
+        8. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), 
+            you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
+        9. NAVIGATION WORKFLOW: When asked to fly/navigate, use ONLY 'NavigateTo'. NEVER use 'CreatePoint' as part of a flight command. 
+            If the user did not provide coordinates (Lat/Lng), you are STRICTLY FORBIDDEN from using 'CreatePoint'.
+        """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
     {

@@ -35,6 +35,9 @@ Next-generation flight control and visualization system with C4I entity manageme
         - Implemented a delta-update notification system (MCP -> BFF -> SignalR -> Frontend).
         - The map now updates instantly when the AI creates or deletes entities, without requiring a page refresh.
     - **Complex Commands:** Updated AI System Prompt to explicitly support multi-step tool chaining (e.g., "Fly to X at 200kts and 5000ft" triggers sequential navigation, speed, and altitude commands).
+    - **Refined AI Logic:** 
+        - Strengthened "Navigation Workflow" rules to strictly forbid the AI from creating points (`CreatePoint`) during navigation requests unless explicit coordinates are provided.
+        - Reformatted System Instructions for better maintainability and readability.
     - **Entity Editing:** Implemented full edit support for Points (click to edit properties, drag to move). Fixed `Leaflet.Draw` crashes and artifact issues during updates.
     - **UI/UX Overhaul:**
         - **Sidebar:** Made sidebar collapsible with non-blocking overlay for simultaneous map interaction. Improved toggle buttons and layout.
