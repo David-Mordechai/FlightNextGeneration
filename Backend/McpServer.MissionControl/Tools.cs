@@ -212,7 +212,7 @@ public class Tools
 
             var zone = new 
             {
-                name = name,
+                name,
                 minAltitude = minAlt,
                 maxAltitude = maxAlt,
                 isActive = true,

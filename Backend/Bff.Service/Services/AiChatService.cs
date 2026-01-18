@@ -36,6 +36,10 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
         11. NAVIGATION WORKFLOW: When asked to fly/navigate, use ONLY 'NavigateTo'. NEVER use 'CreatePoint' as part of a flight command. 
             If the user did not provide coordinates (Lat/Lng), you are STRICTLY FORBIDDEN from using 'CreatePoint'.
+        12. DATA FRESHNESS & NO CACHING: The tool results in your conversation history (lists of points, zones, etc.) are SNAPSHOTS from the past and are likely OUTDATED. 
+            - You must NEVER rely on previous tool outputs to answer questions about the *current* state of the system.
+            - If the user refers to ANY entity (Point, Zone) or asks for a list, you MUST call the relevant listing tool (e.g., 'list_points', 'list_no_fly_zones') AGAIN to get the latest data from the database before acting.
+            - NEVER assume an entity does not exist just because it wasn't in a previous list. CHECK AGAIN.
         """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
