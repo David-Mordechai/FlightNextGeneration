@@ -36,7 +36,7 @@ var app = builder.Build();
 using (var scope = app.Services.CreateScope())
 {
     var db = scope.ServiceProvider.GetRequiredService<C4IDbContext>();
-    db.Database.EnsureCreated();
+    db.Database.Migrate();
 }
 
 // Configure the HTTP request pipeline.

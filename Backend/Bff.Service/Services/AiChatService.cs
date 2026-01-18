@@ -5,6 +5,7 @@ using ModelContextProtocol.Client;
 using OllamaSharp;
 using OpenAI;
 using System.Collections.Concurrent;
+using System.Text.Json;
 
 namespace Bff.Service.Services;
 
@@ -22,16 +23,18 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         2. FLIGHT CONTROL (UAV Operations): Commands the UAV to navigate, change altitude, or change speed.
 
         CRITICAL RULES:
-        1. Use MISSION CONTROL tools to create or manage map entities. These actions do NOT move the UAV.
-        2. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
-        3. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
-        4. NEVER output raw JSON tool calls in your response text. 
-        5. If you want to use a tool, use the formal tool-calling mechanism.
-        6. Use tool response to formulate the answer to the user.
-        7. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
-        8. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), 
+        1. YOU ARE BLIND AND DEAF TO THE WORLD. You cannot "see" the map or "move" the UAV yourself. 
+        2. You MUST use the provided tools for EVERY physical action (Flying, Changing Speed, Changing Altitude).
+        3. If you reply "Navigating to X" without calling the 'NavigateTo' tool, THE UAV WILL NOT MOVE and you will fail the mission.
+        4. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
+        5. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
+        6. NEVER output raw JSON tool calls in your response text. 
+        7. If you want to use a tool, use the formal tool-calling mechanism.
+        8. Use tool response to formulate the answer to the user.
+        9. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
+        10. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), 
             you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
-        9. NAVIGATION WORKFLOW: When asked to fly/navigate, use ONLY 'NavigateTo'. NEVER use 'CreatePoint' as part of a flight command. 
+        11. NAVIGATION WORKFLOW: When asked to fly/navigate, use ONLY 'NavigateTo'. NEVER use 'CreatePoint' as part of a flight command. 
             If the user did not provide coordinates (Lat/Lng), you are STRICTLY FORBIDDEN from using 'CreatePoint'.
         """;
 
@@ -101,6 +104,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         {
             ChatType.GoogleGemini => new ChatClientBuilder(new GenerativeAIChatClient(
                     new GoogleAIPlatformAdapter(apiKey), modelName: model))
+                .UseFunctionInvocation()
                 .Build(),
             ChatType.OpenAi => new ChatClientBuilder(new OpenAIClient(apiKey)
                     .GetChatClient(model).AsIChatClient())
@@ -125,25 +129,39 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             // Aggregate tools from all connected MCP servers
             var allTools = _connectedTools.Values.SelectMany(t => t).Cast<AITool>().ToList();
 
-            // Use non-streaming response for better tool-calling reliability with llama
+            // The middleware (UseFunctionInvocation) will process tool calls.
+            // It returns the entire sequence of new messages in response.Messages.
             var response = await _chatClient.GetResponseAsync(_chatHistory, new ChatOptions
             {
                 Tools = allTools
             });
 
-            // Let's try to get the text from the response safely.
-            var fullResponse = response.ToString();
-            
-            // If the model returned tool results, they might be in the history already if managed by middleware,
-            // but for the final user response, we just take the last text message.
-            
-            logger.LogInformation("AI Response: {Response}", fullResponse);
-
-            // Add assistant response to history
-            if (!string.IsNullOrEmpty(fullResponse))
+            // We MUST manually add the new messages (tool calls, results, final response) 
+            // to our history so the AI has context for the next turn.
+            foreach (var msg in response.Messages)
             {
-                _chatHistory.Add(new ChatMessage(ChatRole.Assistant, fullResponse));
+                _chatHistory.Add(msg);
+
+                if (msg.Role == ChatRole.Assistant)
+                {
+                    foreach (var toolCall in msg.Contents.OfType<FunctionCallContent>())
+                    {
+                        var log = $"[AI TOOL CALL] Executing: {toolCall.Name} with arguments: {(toolCall.Arguments != null ? JsonSerializer.Serialize(toolCall.Arguments) : "none")}";
+                        logger.LogInformation(log);
+                    }
+                }
+                else if (msg.Role == ChatRole.Tool)
+                {
+                    foreach (var toolResult in msg.Contents.OfType<FunctionResultContent>())
+                    {
+                        var log = $"[AI TOOL RESULT] {toolResult.CallId}: {toolResult.Result?.ToString() ?? "Success"}";
+                        logger.LogInformation(log);
+                    }
+                }
             }
+
+            var fullResponse = response.ToString();
+            logger.LogInformation("AI Response: {Response}", fullResponse);
 
             return fullResponse;
         }
