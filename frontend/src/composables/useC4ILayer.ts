@@ -191,16 +191,50 @@ export function useC4ILayer(map: any) {
     const createMarkerFromPoint = (point: Point) => {
         const lat = point.location.coordinates[1];
         const lng = point.location.coordinates[0];
-        const iconUrl = point.type === PointType.Home ? '/home.svg' : '/target.svg';
         
-        const customIcon = L.icon({
-            iconUrl: iconUrl,
-            iconSize: [32, 32],
-            iconAnchor: [16, 16],
-            popupAnchor: [0, -16]
-        });
+        let customIcon;
 
-        const marker = L.marker([lat, lng], { icon: customIcon });
+        if (point.type === PointType.Home) {
+            // Home Icon (House/Base)
+            const homeSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/></svg>`;
+            
+            customIcon = L.divIcon({
+                className: 'home-marker',
+                html: `
+                    <div class="home-marker-container">
+                        <div class="home-marker-ring"></div>
+                        <div class="home-marker-icon">${homeSvg}</div>
+                    </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20]
+            });
+        } else {
+            // Target Icon (Crosshair)
+            const targetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v-2h2v2h2v2h-2v2h-2v-2z"/></svg>`;
+            // Alternative Target: Simple Dot in Circle
+            const simpleTargetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>`;
+
+            customIcon = L.divIcon({
+                className: 'target-marker',
+                html: `
+                    <div class="target-marker-container">
+                        <div class="target-ring-outer"></div>
+                        <div class="target-ring-inner"></div>
+                        <div class="target-marker-icon">${simpleTargetSvg}</div>
+                    </div>
+                `,
+                iconSize: [40, 40],
+                iconAnchor: [20, 20],
+                popupAnchor: [0, -20]
+            });
+        }
+
+        const marker = L.marker([lat, lng], { 
+            icon: customIcon,
+            zIndexOffset: 500 // Lower priority than UAV
+        });
 
         // @ts-ignore
         marker.feature = {
@@ -216,9 +250,10 @@ export function useC4ILayer(map: any) {
         marker.bindPopup(`<strong>${point.name}</strong><br>${point.type === PointType.Home ? 'Home' : 'Target'}`);
         marker.bindTooltip(point.name, { 
             permanent: true, 
-            direction: 'bottom', 
-            offset: [0, 10],
-            className: 'entity-label'
+            direction: 'top', 
+            offset: [0, -20],
+            className: 'entity-label',
+            pane: 'shadowPane' // Render below markers
         });
 
         marker.on('click', () => {
@@ -243,7 +278,12 @@ export function useC4ILayer(map: any) {
             fetchedZones.forEach(zone => {
                 if (zone.geometry) {
                     const layer = L.geoJSON(zone.geometry, {
-                        style: { color: '#ff0000', weight: 2, fillOpacity: 0.2 }
+                        style: { 
+                            color: '#ef4444', 
+                            weight: 2, 
+                            fillOpacity: 0.1,
+                            className: 'neon-zone-path'
+                        }
                     });
                     
                     addNonGroupLayers(layer, {
@@ -289,8 +329,10 @@ export function useC4ILayer(map: any) {
             sourceLayer.bindPopup(`<strong>${properties.name}</strong><br>Alt: ${properties.minAltitude}-${properties.maxAltitude}ft`);
             sourceLayer.bindTooltip(properties.name, { 
                 permanent: true, 
-                direction: 'center', 
-                className: 'entity-label'
+                direction: 'top', 
+                offset: [0, -20],
+                className: 'entity-label',
+                pane: 'shadowPane' // Render below markers
             });
             
             // Edit Click Listener
@@ -370,7 +412,12 @@ export function useC4ILayer(map: any) {
                 zones.value.push(saved);
 
                 const savedLayer = L.geoJSON(saved.geometry, {
-                    style: { color: '#ff0000', weight: 2, fillOpacity: 0.2 }
+                    style: { 
+                        color: '#ef4444', 
+                        weight: 2, 
+                        fillOpacity: 0.1,
+                        className: 'neon-zone-path'
+                    }
                 });
                 
                 addNonGroupLayers(savedLayer, {

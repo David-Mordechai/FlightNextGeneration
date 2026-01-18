@@ -22,9 +22,10 @@ public class PathFindingService(C4IDbContext context)
 
         // 2. Build Nodes (Start, End, + Zone Vertices)
         // Buffer zones to create a safety margin. 
+        // Increased buffer to 0.0005 (~55m) to prevent UAV from flying too close to the edge.
         // quadrantSegments: 2 reduces vertex count (chamfered corners) vs default 8, improving performance.
         var obstacles = zones
-            .Select(z => z.Geometry.Buffer(0.0001, 2) as Polygon)
+            .Select(z => z.Geometry.Buffer(0.0005, 2) as Polygon)
             .Where(p => p != null)
             .Cast<Polygon>()
             .ToList();

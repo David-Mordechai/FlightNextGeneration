@@ -26,7 +26,7 @@ export const createUavIcon = (heading: number, altitude: number) => {
     const scale = Math.max(0.3, Math.min(1.8, 3000 / altitude));
     return L.divIcon({
         className: 'uav-marker-container',
-        html: `<img src="/Orbiter3.png" class="uav-icon" style="transform: rotate(${heading}deg) scale(${scale}); width: 64px; height: 64px;" />`,
+        html: `<img src="/Orbiter3.png" class="uav-icon" style="transform-origin: center; transform: rotate(${heading}deg) scale(${scale}); width: 64px; height: 64px;" />`,
         iconSize: [64, 64],
         iconAnchor: [32, 32],
         popupAnchor: [0, -32]

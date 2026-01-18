@@ -11,25 +11,209 @@
 body {
   margin: 0;
   padding: 0;
-  overflow: hidden; /* Prevent scrollbars in full-screen app */
+  overflow: hidden;
 }
 
-/* Custom Entity Label Styles */
+/* --- ANIMATED ENTITY LABELS --- */
+/* Simplified selector to ensure application */
 .entity-label {
-  background-color: transparent !important;
-  border: none !important;
-  box-shadow: none !important;
-  color: #00ffff;
-  font-weight: bold;
-  font-size: 13px;
-  font-family: monospace;
-  text-shadow: 1px 1px 2px rgba(0, 0, 0, 0.5);
-  overflow: visible !important;
-  margin: 0 !important;
+  background-color: rgba(15, 23, 42, 0.5) !important; /* Reduced opacity */
+  backdrop-filter: blur(4px); /* Glass effect for transparency */
+  -webkit-backdrop-filter: blur(4px);
+  border: 1px solid rgba(56, 189, 248, 0.4) !important;
+  border-left: 3px solid #38bdf8 !important; 
+  border-radius: 4px !important;
+  
+  color: #e0f2fe !important;
+  font-family: 'Consolas', 'Monaco', monospace;
+  font-size: 12px !important; /* Slightly larger */
+  font-weight: 700 !important;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  
+  padding: 4px 8px !important;
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.6) !important;
+  
+  white-space: nowrap;
+  opacity: 1 !important;
+  visibility: visible !important;
+  
+  /* Reset Leaflet defaults */
+  width: auto !important;
+  height: auto !important;
+  
+  /* Smooth transition for zoom scaling */
+  transition: font-size 0.3s, margin-top 0.3s, opacity 0.3s;
 }
 
-/* Hide default tip */
-.entity-label .leaflet-tooltip-tip,
-.entity-label::before {
-  display: none !important;
+/* Zoom Level Adjustments (applied by MapComponent.vue) */
+.zoom-mid .entity-label {
+  font-size: 10px !important;
+  padding: 2px 6px !important;
+  margin-top: 0px !important; /* Closer to marker */
 }
+
+.zoom-low .entity-label {
+  font-size: 9px !important;
+  padding: 1px 4px !important;
+  margin-top: 4px !important; /* Even closer (overlapping top of icon slightly) */
+  opacity: 0.8 !important;
+}
+
+/* Hide the default triangle tip */
+.entity-label::before,
+.entity-label::after,
+.leaflet-tooltip-tip {
+  display: none !important;
+  opacity: 0 !important;
+}
+
+/* --- VISUAL EFFECTS --- */
+
+/* Home Point */
+.home-marker-container {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-marker-ring {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  border: 2px solid #60a5fa;
+  opacity: 0;
+  box-shadow: 0 0 15px #60a5fa;
+  animation: pulse-ring-large 3s infinite;
+}
+.home-marker-icon {
+  position: relative;
+  z-index: 2;
+  width: 24px;
+  height: 24px;
+  color: #fff;
+  background: #2563eb;
+  padding: 6px;
+  border-radius: 50%;
+  box-shadow: 0 0 10px #2563eb, 0 0 0 2px white;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.home-marker-icon svg { width: 100%; height: 100%; fill: currentColor; }
+@keyframes pulse-ring-large {
+  0% { width: 30px; height: 30px; opacity: 0.9; border-width: 3px; }
+  100% { width: 80px; height: 80px; opacity: 0; border-width: 0px; }
+}
+
+/* Target Point */
+.target-marker-container {
+  position: relative;
+  width: 40px;
+  height: 40px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.target-ring-outer {
+  position: absolute;
+  width: 100%;
+  height: 100%;
+  border: 2px dashed #f87171;
+  border-radius: 50%;
+  animation: spin-slow 10s linear infinite;
+  opacity: 0.8;
+  filter: drop-shadow(0 0 2px black);
+}
+.target-ring-inner {
+  position: absolute;
+  width: 70%;
+  height: 70%;
+  border-top: 2px solid #ef4444;
+  border-bottom: 2px solid #ef4444;
+  border-left: 2px solid transparent;
+  border-right: 2px solid transparent;
+  border-radius: 50%;
+  animation: spin-reverse 3s linear infinite;
+  box-shadow: 0 0 10px #ef4444;
+}
+.target-marker-icon {
+  position: relative;
+  z-index: 2;
+  color: #fff;
+  background: #dc2626;
+  width: 20px;
+  height: 20px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 0 15px #dc2626, 0 0 0 1px white;
+  animation: pulse-opacity 2s ease-in-out infinite;
+}
+.target-marker-icon svg { width: 12px; height: 12px; fill: currentColor; }
+@keyframes spin-slow { 100% { transform: rotate(360deg); } }
+@keyframes spin-reverse { 100% { transform: rotate(-360deg); } }
+@keyframes pulse-opacity {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.8; transform: scale(0.9); }
+}
+
+/* Neon Zones */
+.neon-zone-path {
+  stroke: #ff4444;
+  stroke-width: 3px;
+  stroke-dasharray: 5, 5;
+  filter: drop-shadow(0 0 3px black);
+  animation: dash-animation 20s linear infinite;
+}
+
+/* Projected Path */
+.flight-path-projected {
+  stroke: #38bdf8;
+  stroke-width: 2px;
+  stroke-dasharray: none; 
+  stroke-linecap: round;
+  filter: drop-shadow(0 0 2px #000);
+  opacity: 1.0;
+  animation: laser-pulse 2s ease-in-out infinite alternate;
+}
+@keyframes laser-pulse {
+  0% { opacity: 1.0; stroke: #38bdf8; }
+  100% { opacity: 0.7; stroke: #0ea5e9; }
+}
+
+/* Optimal Path */
+.flight-path-optimal {
+  stroke: #4ade80;
+  stroke-width: 2px;
+  stroke-dasharray: 12, 8; 
+  stroke-linecap: round;
+  opacity: 1.0;
+  filter: drop-shadow(0 0 3px black);
+  animation: path-flow 1s linear infinite;
+}
+@keyframes path-flow {
+  from { stroke-dashoffset: 20; }
+  to { stroke-dashoffset: 0; }
+}
+
+/* Waypoint Dot */
+.waypoint-dot {
+  filter: drop-shadow(0 0 2px black);
+  animation: dot-pulse 2s infinite ease-in-out;
+}
+@keyframes dot-pulse {
+  0%, 100% { r: 4; opacity: 1; fill: #4ade80; }
+  50% { r: 5; opacity: 0.8; fill: #86efac; }
+}
+
+@keyframes dash-animation { to { stroke-dashoffset: -100; } }
+
+.uav-icon { transition: none !important; }

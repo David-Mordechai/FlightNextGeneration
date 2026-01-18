@@ -22,7 +22,7 @@ public class FlightStateService
     private Queue<(double Lat, double Lng)> Waypoints { get; set; } = new();
     private List<(double Lat, double Lng)>? PendingPath { get; set; }
 
-    private double OrbitRadius { get; set; } = 0.01; // ~1km
+    private double TargetOrbitRadius { get; set; } = 0.01; // ~1km target radius
     private double OrbitAngle { get; set; }
 
     // Target Telemetry
@@ -73,9 +73,23 @@ public class FlightStateService
         var dLng = TargetLng - CurrentLng;
         var distance = Math.Sqrt(dLat * dLat + dLng * dLng);
 
-        // Arrival threshold (approx 100m, 0.001 deg)
-        if (distance < 0.001)
+        // Orbit Capture: If we are on the final leg and hit the orbit perimeter (1km), start orbiting.
+        // This prevents flying to the center and "jumping" or spiraling out.
+        if (Waypoints.Count == 0 && distance <= TargetOrbitRadius)
         {
+            Mode = FlightMode.Orbiting;
+            // Calculate angle from Center TO Current Position (Perimeter Intercept)
+            OrbitAngle = Math.Atan2(CurrentLng - TargetLng, CurrentLat - TargetLat);
+            return;
+        }
+
+        // Standard Waypoint Arrival (approx 11m threshold)
+        if (distance < 0.0001)
+        {
+            // Snap to the exact target to prevent drift accumulation
+            CurrentLat = TargetLat;
+            CurrentLng = TargetLng;
+
             if (Waypoints.Count > 0)
             {
                 // Proceed to next waypoint
@@ -83,12 +97,7 @@ public class FlightStateService
                 TargetLat = next.Lat;
                 TargetLng = next.Lng;
             }
-            else
-            {
-                // Reached final destination
-                Mode = FlightMode.Orbiting;
-                OrbitAngle = Math.Atan2(CurrentLng - TargetLng, CurrentLat - TargetLat);
-            }
+            // Note: The 'else' block for final destination is handled by Orbit Capture above.
         }
         else
         {
@@ -101,29 +110,23 @@ public class FlightStateService
     private void UpdateOrbit(double step)
     {
         // Angular velocity: omega = v / r
-        var angleStep = step / OrbitRadius;
+        var angleStep = step / TargetOrbitRadius;
         OrbitAngle += angleStep;
         if (OrbitAngle > Math.PI * 2) OrbitAngle -= Math.PI * 2;
 
-        CurrentLat = TargetLat + OrbitRadius * Math.Cos(OrbitAngle);
-        CurrentLng = TargetLng + OrbitRadius * Math.Sin(OrbitAngle);
+        CurrentLat = TargetLat + TargetOrbitRadius * Math.Cos(OrbitAngle);
+        CurrentLng = TargetLng + TargetOrbitRadius * Math.Sin(OrbitAngle);
     }
 
     public double GetHeading()
     {
         // Simple approximation or stored heading
-        // For orbit: Tangent to circle. For transit: Vector to target.
         if (Mode == FlightMode.Transiting)
         {
              return Math.Atan2(TargetLng - CurrentLng, TargetLat - CurrentLat) * (180 / Math.PI);
         }
 
-        // Heading is tangent to the circle (OrbitAngle + 90 degrees)
-        // But we need to be careful with coordinate system. 
-        // Lat/Lng is Y/X. Atan2(y, x).
-        // Let's rely on the previous frame diff for simplicity in the worker, 
-        // or calculate it analytically here.
-        // Analytic: Tangent angle = OrbitAngle + PI/2 (counter-clockwise)
+        // Tangent angle = OrbitAngle + PI/2 (counter-clockwise)
         return OrbitAngle * (180 / Math.PI) + 90;
     }
 

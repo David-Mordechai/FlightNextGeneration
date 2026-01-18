@@ -62,13 +62,10 @@ onMounted(async () => {
     map.value = leafletMap;
 
     // Light Matter Tiles (Voyager)
-    L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-      attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors &copy; <a href="https://carto.com/attributions">CARTO</a>',
-      subdomains: 'abcd',
-      maxZoom: 20
-    }).addTo(leafletMap);
-
-    // 3. Initialize Layers & Controls
+                    L.tileLayer('https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}', {
+                        attribution: 'Tiles &copy; Esri &mdash; Source: Esri, i-cubed, USDA, USGS, AEX, GeoEye, Getmapping, Aerogrid, IGN, IGP, UPR-EGP, and the GIS User Community',
+                        maxZoom: 19
+                    }).addTo(leafletMap);    // 3. Initialize Layers & Controls
     initializeDrawControls(leafletMap);
     await loadNoFlyZones();
     await loadPoints();
@@ -80,6 +77,21 @@ onMounted(async () => {
         leafletMap.invalidateSize();
     });
     resizeObserver.observe(mapContainer.value);
+
+    // 5. Dynamic Zoom Classes for Label Scaling
+    const updateZoomClass = () => {
+        const z = leafletMap.getZoom();
+        const container = mapContainer.value;
+        if (!container) return;
+        
+        container.classList.remove('zoom-low', 'zoom-mid', 'zoom-high');
+        
+        if (z < 10) container.classList.add('zoom-low');
+        else if (z < 14) container.classList.add('zoom-mid');
+        else container.classList.add('zoom-high');
+    };
+    leafletMap.on('zoomend', updateZoomClass);
+    updateZoomClass(); // Initial check
   }
 });
 
