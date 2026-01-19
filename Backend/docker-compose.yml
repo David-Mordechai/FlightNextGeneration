@@ -19,6 +19,8 @@ services:
     depends_on:
       - c4ientities
       - mcpserver.flightcontrol
+    ports:
+      - "5135:8080"
     environment:
       - OllamaUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
       - AIProvider=${AI_PROVIDER}
@@ -38,6 +40,8 @@ services:
       dockerfile: C4IEntities/Dockerfile
     depends_on:
       - postgis
+    ports:
+      - "5293:8080"
     environment:
       - ConnectionStrings__DefaultConnection=Host=postgis;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
 
