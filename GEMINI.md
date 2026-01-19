@@ -33,6 +33,12 @@ Next-generation flight control and visualization system with C4I entity manageme
   - **No-Fly Zones:** Geospatial persistence for polygons and rectangles.
   - **Real-Time Sync:** Instant map updates via SignalR when AI modifies entities.
 
+- **Infrastructure**
+  - **Docker Compose:** Exposed ports for `flightcontrol` and `c4ientities` services to facilitate direct access and debugging.
+
+- **User Interface Enhancements**
+  - **Mission Chat:** Implemented "AI Response Timing" display. Chat messages from Mission Control now show the server-side processing duration in seconds, aiding in performance monitoring.
+
 ## Technical Details
 - **Backend:** .NET 10, Entity Framework Core, Npgsql (PostGIS), NetTopologySuite.
 - **Frontend:** Vue 3, Vite, Tailwind CSS, DaisyUI, Leaflet, SignalR.

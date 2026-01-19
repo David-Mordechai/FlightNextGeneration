@@ -39,7 +39,7 @@ class SignalRService {
     this.connection.on("ReceiveFlightData", callback);
   }
 
-  public onReceiveChatMessage(callback: (user: string, text: string) => void): void {
+  public onReceiveChatMessage(callback: (user: string, text: string, duration?: number) => void): void {
     this.connection.on("ReceiveChatMessage", callback);
   }
 

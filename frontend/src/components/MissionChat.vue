@@ -6,6 +6,7 @@ interface Message {
   user: string;
   text: string;
   isSystem: boolean;
+  duration?: number; // Duration in seconds
 }
 
 const messages = ref<Message[]>([]);
@@ -21,11 +22,12 @@ const scrollToBottom = async () => {
 };
 
 onMounted(() => {
-  signalRService.onReceiveChatMessage((user: string, text: string) => {
+  signalRService.onReceiveChatMessage((user: string, text: string, duration?: number) => {
     messages.value.push({
       user,
       text,
-      isSystem: user === 'Mission Control'
+      isSystem: user === 'Mission Control',
+      duration
     });
     scrollToBottom();
   });
@@ -56,10 +58,13 @@ const sendMessage = async () => {
     <div v-show="isOpen" class="flex-1 flex flex-col min-h-0">
         <div ref="chatContainer" class="flex-1 overflow-y-auto px-5 py-2 space-y-4 custom-scrollbar">
             <div v-for="(msg, index) in messages" :key="index" class="flex flex-col gap-1">
-                <div class="flex items-center">
+                <div class="flex items-center gap-2">
                     <span class="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/10 bg-white/5" 
                           :class="msg.isSystem ? 'text-primary' : 'text-accent'">
                         {{ msg.user }}
+                    </span>
+                    <span v-if="msg.duration" class="text-[10px] font-mono font-bold text-accent tracking-wider ml-1">
+                        {{ msg.duration.toFixed(2) }}s
                     </span>
                 </div>
                 <span class="text-[11px] font-mono font-bold leading-relaxed text-white/90 pl-1">
