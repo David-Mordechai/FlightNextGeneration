@@ -1,4 +1,4 @@
-import { ref, markRaw, onUnmounted } from 'vue';
+import { ref, markRaw } from 'vue';
 import L from 'leaflet';
 import { signalRService } from '../services/SignalRService';
 import { createUavIcon } from '../utils/leafletSetup';
@@ -23,11 +23,11 @@ export function useFlightVisualization(map: any) {
 
     const clearOptimalPath = (currentMap: L.Map) => {
         if (optimalPathLayer.value) {
-            currentMap.removeLayer(optimalPathLayer.value);
+            currentMap.removeLayer(optimalPathLayer.value as unknown as L.Layer);
             optimalPathLayer.value = null;
         }
         if (pathMarkersLayer.value) {
-            currentMap.removeLayer(pathMarkersLayer.value);
+            currentMap.removeLayer(pathMarkersLayer.value as unknown as L.Layer);
             pathMarkersLayer.value = null;
         }
         finalDestination.value = null;
@@ -81,9 +81,8 @@ export function useFlightVisualization(map: any) {
                     fillOpacity: 0.6,
                     weight: 1,
                     className: 'waypoint-dot', 
-                    zIndexOffset: 1000,
                     pane: 'markerPane' // Ensure dots are above labels
-                }).addTo(pathMarkersLayer.value);
+                }).addTo(pathMarkersLayer.value as unknown as L.LayerGroup);
             });
         });
 

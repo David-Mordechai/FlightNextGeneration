@@ -109,13 +109,16 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             ChatType.GoogleGemini => new ChatClientBuilder(new GenerativeAIChatClient(
                     new GoogleAIPlatformAdapter(apiKey), modelName: model))
                 .UseFunctionInvocation()
+                .UseOpenTelemetry()
                 .Build(),
             ChatType.OpenAi => new ChatClientBuilder(new OpenAIClient(apiKey)
                     .GetChatClient(model).AsIChatClient())
                 .UseFunctionInvocation()
+                .UseOpenTelemetry()
                 .Build(),
             ChatType.Ollama => new ChatClientBuilder(new OllamaApiClient(providerUrl, model))
                 .UseFunctionInvocation()
+                .UseOpenTelemetry()
                 .Build(),
             _ => throw new ArgumentOutOfRangeException(nameof(chatType), chatType, null)
         };

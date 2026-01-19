@@ -177,16 +177,16 @@ body {
 /* Projected Path */
 .flight-path-projected {
   stroke: #38bdf8;
-  stroke-width: 2px;
+  stroke-width: 3px;
   stroke-dasharray: none; 
   stroke-linecap: round;
-  filter: drop-shadow(0 0 2px #000);
+  filter: drop-shadow(0 0 4px #0ea5e9);
   opacity: 1.0;
-  animation: laser-pulse 2s ease-in-out infinite alternate;
+  animation: laser-pulse 1s ease-in-out infinite alternate;
 }
 @keyframes laser-pulse {
-  0% { opacity: 1.0; stroke: #38bdf8; }
-  100% { opacity: 0.7; stroke: #0ea5e9; }
+  0% { opacity: 1.0; stroke-width: 3px; stroke: #38bdf8; filter: drop-shadow(0 0 4px #0ea5e9); }
+  100% { opacity: 0.6; stroke-width: 2px; stroke: #7dd3fc; filter: drop-shadow(0 0 2px #0ea5e9); }
 }
 
 /* Optimal Path */

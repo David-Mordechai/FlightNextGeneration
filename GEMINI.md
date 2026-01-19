@@ -34,10 +34,23 @@ Next-generation flight control and visualization system with C4I entity manageme
   - **Real-Time Sync:** Instant map updates via SignalR when AI modifies entities.
 
 - **Infrastructure**
-  - **Docker Compose:** Exposed ports for `flightcontrol` and `c4ientities` services to facilitate direct access and debugging.
+  - **Docker Compose:** Exposed ports for `flightcontrol` and `c4ientities` services.
+  - **Observability Stack:** Implemented a central observability system using **.NET Aspire Dashboard**.
+    - **Tracing & Metrics:** Integrated **OpenTelemetry** across all backend services.
+    - **Logs:** Centralized logging via **Serilog** with the OpenTelemetry sink.
 
 - **User Interface Enhancements**
-  - **Mission Chat:** Implemented "AI Response Timing" display. Chat messages from Mission Control now show the server-side processing duration in seconds, aiding in performance monitoring.
+  - **Mission Chat:** 
+    - Implemented "AI Response Timing" display.
+    - Increased font sizes and improved text visibility for better readability.
+    - Scaled "Mission Control" title to match chat content.
+  - **UAV Visualization:** 
+    - Increased UAV icon size to **80px** for tactical clarity.
+    - **Projected Path (Blue):** Enhanced with a thicker (3px) solid neon line and a high-energy pulse animation to indicate direction/intent without dashing.
+
+- **Advanced Observability & AI Tracing**
+  - **AI Thought Process:** Integrated `Microsoft.Extensions.AI.OpenTelemetry` to capture detailed traces of AI completions, tool invocations (MCP), and results.
+  - **Distributed Tracing:** Full request lifecycle visibility from User Chat -> AI Logic -> MCP Tool Call -> Database (EF Core) -> Final Response.
 
 ## Technical Details
 - **Backend:** .NET 10, Entity Framework Core, Npgsql (PostGIS), NetTopologySuite.

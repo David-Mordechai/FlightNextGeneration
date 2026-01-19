@@ -212,7 +212,6 @@ export function useC4ILayer(map: any) {
             });
         } else {
             // Target Icon (Crosshair)
-            const targetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2zm-1 14H9v-2h2v-2h2v2h2v2h-2v2h-2v-2z"/></svg>`;
             // Alternative Target: Simple Dot in Circle
             const simpleTargetSvg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"><circle cx="12" cy="12" r="8"/></svg>`;
 

@@ -13,8 +13,15 @@ public record RouteData(object Path, double Distance);
 
 [ApiController]
 [Route("api/mission")]
-public class MissionController(FlightStateService flightState, IHubContext<FlightHub> hubContext) : ControllerBase
+public class MissionController(FlightStateService flightState, IHubContext<FlightHub> hubContext, AiChatService aiChatService) : ControllerBase
 {
+    [HttpPost("chat")]
+    public async Task<IActionResult> Chat([FromBody] string message)
+    {
+        var result = await aiChatService.ProcessUserMessage(message);
+        return Ok(result);
+    }
+
     [HttpPost("target")]
     public IActionResult SetTarget([FromBody] TargetRequest request)
     {

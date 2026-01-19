@@ -11,6 +11,18 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
+  aspire-dashboard:
+    image: mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest
+    container_name: flight_aspire_dashboard
+    ports:
+      - "18888:18888"
+      - "4317:4317"
+      - "4318:4318"
+    environment:
+      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
+      - DOTNET_DASHBOARD_OTLP_ENDPOINT_URL=http://0.0.0.0:4317
+      - DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL=http://0.0.0.0:4318
+
   bff.service:
     image: ${DOCKER_REGISTRY-}bffservice
     build:
@@ -30,6 +42,8 @@ services:
       - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
       - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
       - McpServerUrl=http://mcpserver.flightcontrol:8080;http://mcpserver.missioncontrol:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=flight-bff
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -40,10 +54,13 @@ services:
       dockerfile: C4IEntities/Dockerfile
     depends_on:
       - postgis
+      - aspire-dashboard
     ports:
       - "5293:8080"
     environment:
       - ConnectionStrings__DefaultConnection=Host=postgis;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=flight-c4i
 
   mcpserver.flightcontrol:
     image: ${DOCKER_REGISTRY-}mcpserverflightcontrol
@@ -53,6 +70,8 @@ services:
     environment:
       - BffServiceUrl=http://bff.service:8080
       - C4IServiceUrl=http://c4ientities:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=flight-mcp-flightcontrol
 
   mcpserver.missioncontrol:
     image: ${DOCKER_REGISTRY-}mcpservermissioncontrol
@@ -62,6 +81,8 @@ services:
     environment:
       - C4IServiceUrl=http://c4ientities:8080
       - BffServiceUrl=http://bff.service:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=flight-mcp-missioncontrol
 
 volumes:
   postgres_data:

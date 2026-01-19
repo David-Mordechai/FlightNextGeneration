@@ -49,9 +49,9 @@ const sendMessage = async () => {
     <div @click="isOpen = !isOpen" class="flex justify-between items-center px-5 py-3 cursor-pointer hover:bg-white/5 transition-colors">
       <div class="flex items-center gap-3">
         <div class="w-1.5 h-1.5 rounded-full bg-primary animate-pulse shadow-[0_0_8px_rgba(var(--p),0.8)]"></div>
-        <span class="text-[9px] font-black tracking-[0.2em] text-primary uppercase">MISSION CONTROL</span>
+        <span class="text-sm font-black tracking-[0.2em] text-primary uppercase">MISSION CONTROL</span>
       </div>
-      <span class="text-[9px] font-bold uppercase tracking-widest text-white/40">{{ isOpen ? 'Minimize' : 'Expand' }}</span>
+      <span class="text-[10px] font-bold uppercase tracking-widest text-white/40">{{ isOpen ? 'Minimize' : 'Expand' }}</span>
     </div>
     
     <!-- Chat Content -->
@@ -59,15 +59,15 @@ const sendMessage = async () => {
         <div ref="chatContainer" class="flex-1 overflow-y-auto px-5 py-2 space-y-4 custom-scrollbar">
             <div v-for="(msg, index) in messages" :key="index" class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
-                    <span class="text-[8px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/10 bg-white/5" 
+                    <span class="text-xs font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/10 bg-white/5" 
                           :class="msg.isSystem ? 'text-primary' : 'text-accent'">
                         {{ msg.user }}
                     </span>
-                    <span v-if="msg.duration" class="text-[10px] font-mono font-bold text-accent tracking-wider ml-1">
+                    <span v-if="msg.duration" class="text-xs font-mono font-bold text-accent tracking-wider ml-1">
                         {{ msg.duration.toFixed(2) }}s
                     </span>
                 </div>
-                <span class="text-[11px] font-mono font-bold leading-relaxed text-white/90 pl-1">
+                <span class="text-sm font-mono font-bold leading-relaxed text-white pl-1">
                     {{ msg.text }}
                 </span>
             </div>
@@ -76,14 +76,14 @@ const sendMessage = async () => {
         <!-- Input Area -->
         <div class="p-4 bg-white/5 border-t border-white/5">
             <div class="flex gap-3 items-center bg-black/40 rounded-xl px-3 py-2 border border-white/5 focus-within:border-primary/30 transition-colors">
-                <span class="text-primary text-xs font-mono font-black opacity-50">&gt;</span>
+                <span class="text-primary text-sm font-mono font-black opacity-50">&gt;</span>
                 <input 
                     v-model="newMessage" 
                     @keyup.enter="sendMessage"
-                    class="bg-transparent w-full text-white outline-none placeholder-white/30 text-[11px] font-mono font-bold" 
+                    class="bg-transparent w-full text-white outline-none placeholder-white/30 text-sm font-mono font-bold" 
                     placeholder="ENTER COMMAND..." 
                 />
-                <button @click="sendMessage" class="text-[9px] font-black text-primary hover:text-white transition-colors uppercase tracking-widest">SEND</button>
+                <button @click="sendMessage" class="text-xs font-black text-primary hover:text-white transition-colors uppercase tracking-widest">SEND</button>
             </div>
         </div>
     </div>
