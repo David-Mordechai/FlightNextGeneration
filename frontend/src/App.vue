@@ -1,23 +1,15 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted } from 'vue';
-import MapComponent from './components/MapComponent.vue'
+import CesiumMap from './components/CesiumMap.vue';
 import { signalRService } from './services/SignalRService';
+import { onMounted } from 'vue';
 
 onMounted(async () => {
-  // Start SignalR connection once at app level
   await signalRService.startConnection();
-});
-
-onUnmounted(async () => {
-  // Stop connection when app unmounts
-  await signalRService.stopConnection();
 });
 </script>
 
 <template>
-  <div class="app-container">
-    <MapComponent />
-  </div>
+  <CesiumMap />
 </template>
 
 <style>
