@@ -1,7 +1,7 @@
 import { ref, type ShallowRef } from 'vue';
 import * as Cesium from 'cesium';
 import { signalRService } from '../services/SignalRService';
-import { PolylineFlowMaterialProperty, registerCustomMaterials } from '../utils/CesiumAdvancedMaterials';
+import { PolylineFlowMaterialProperty, TacticalBeamMaterialProperty, registerCustomMaterials } from '../utils/CesiumAdvancedMaterials';
 import { useScreenLabels } from './useScreenLabels';
 
 export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | null>) {
@@ -144,7 +144,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 }
             }
 
-            // 1. Projected Path (Orange Laser Beam)
+            // 1. Projected Path (Digital Pulse Beam)
             if (!projectedPathEntities.has(flightId)) {
                 const entity = currentViewer.entities.add({
                     polyline: {
@@ -160,16 +160,15 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                                 Cesium.Cartesian3.fromDegrees(target.lng, target.lat, terrainHeight)
                             ];
                         }, false),
-                        width: 10,
-                        material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.3,
-                            taperPower: 0.5,
-                            color: Cesium.Color.fromCssColorString('#FF5500')
+                        width: 8,
+                        // @ts-ignore
+                        material: new TacticalBeamMaterialProperty({
+                            color: Cesium.Color.fromCssColorString('#00F2FF'),
+                            speed: 2.0
                         }),
                         depthFailMaterial: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.3,
-                            taperPower: 0.5,
-                            color: Cesium.Color.fromCssColorString('#FF5500').withAlpha(0.5)
+                            glowPower: 0.1,
+                            color: Cesium.Color.fromCssColorString('#00F2FF').withAlpha(0.2)
                         })
                     }
                 });
@@ -216,11 +215,9 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     // Using a high-quality public 3D aircraft model
                     model: {
                         uri: 'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',
-                        minimumPixelSize: 64, 
+                        minimumPixelSize: 128, 
                         maximumScale: 10000,
-                        scale: 5.0, 
-                        silhouetteColor: Cesium.Color.AQUA,
-                        silhouetteSize: 1.0,
+                        scale: 15.0, 
                         color: Cesium.Color.WHITE.withAlpha(1.0),
                         colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
                         heightReference: Cesium.HeightReference.NONE

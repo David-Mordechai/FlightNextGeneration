@@ -60,6 +60,44 @@ export class PolylineFlowMaterialProperty {
     }
 }
 
+export class TacticalBeamMaterialProperty {
+    private _definitionChanged: Cesium.Event;
+    private _color: Cesium.Color | undefined;
+    private _speed: number | undefined;
+
+    constructor(options: { color?: Cesium.Color, speed?: number } = {}) {
+        this._definitionChanged = new Cesium.Event();
+        this._color = options.color || Cesium.Color.fromCssColorString('#00F2FF');
+        this._speed = options.speed || 2.0;
+    }
+
+    get isConstant() { return false; }
+    get definitionChanged() { return this._definitionChanged; }
+    get color() { return this._color; }
+    get speed() { return this._speed; }
+
+    getType(_time: Cesium.JulianDate) {
+        return 'TacticalBeam';
+    }
+
+    getValue(_time: Cesium.JulianDate, result: any) {
+        if (!Cesium.defined(result)) {
+            result = {};
+        }
+        result.color = this._color;
+        result.speed = this._speed;
+        result.time = performance.now() / 1000.0;
+        return result;
+    }
+
+    equals(other: any) {
+        return (this === other ||
+            (other instanceof TacticalBeamMaterialProperty &&
+             ((!!this._color && !!other._color && this._color.equals(other._color))) &&
+             this._speed === other._speed));
+    }
+}
+
 // Register the Material
 export function registerCustomMaterials() {
     if ((Cesium.Material as any).PolylineFlowType) return; // Already registered
@@ -93,6 +131,50 @@ export function registerCustomMaterials() {
                     
                     // Add a glow/emission effect
                     material.emission = material.diffuse * 1.5;
+                    
+                    return material;
+                }
+            `
+        },
+        translucent: function(_material: any) {
+            return true;
+        }
+    });
+
+    (Cesium.Material as any).TacticalBeamType = 'TacticalBeam';
+    (Cesium.Material as any)._materialCache.addMaterial('TacticalBeam', {
+        fabric: {
+            type: 'TacticalBeam',
+            uniforms: {
+                color: new Cesium.Color(0.0, 0.95, 1.0, 1.0),
+                speed: 0.8,
+                time: 0
+            },
+            source: `
+                czm_material czm_getMaterial(czm_materialInput materialInput)
+                {
+                    czm_material material = czm_getDefaultMaterial(materialInput);
+                    vec2 st = materialInput.st;
+                    
+                    // 1. Softer, slower dashed pattern
+                    float dash = fract(st.s * 12.0 - time * speed * 0.3);
+                    float dashMask = smoothstep(0.4, 0.5, dash) - smoothstep(0.8, 0.9, dash);
+                    
+                    // 2. Gentle pulse wave
+                    float pulse = fract(st.s - time * (speed * 0.2));
+                    float pulseMask = pow(1.0 - pulse, 3.0);
+                    
+                    // 3. Side-to-side gradient for a soft "cylindrical" beam look
+                    float edgeMask = 1.0 - abs(st.t - 0.5) * 2.0;
+                    edgeMask = pow(edgeMask, 1.5);
+                    
+                    // Combine effects
+                    float alpha = (dashMask * 0.3 + pulseMask * 0.4 + 0.1);
+                    alpha *= edgeMask * color.a;
+                    
+                    material.diffuse = color.rgb;
+                    material.alpha = alpha;
+                    material.emission = color.rgb * (pulseMask * 0.8 + 0.2);
                     
                     return material;
                 }
