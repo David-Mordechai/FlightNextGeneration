@@ -125,28 +125,31 @@ const isSidebarOpen = ref(true);
       </nav>
 
       <!-- Map Area -->
-      <div class="flex-1 relative z-0">
-         <!-- The Map Slot -->
-         <div class="absolute inset-0">
+      <div class="flex-1 relative z-0 flex overflow-hidden">
+         <!-- Central Map Pane -->
+         <div class="flex-1 relative">
             <slot name="map"></slot>
          </div>
 
-         <!-- HUD Overlays (Floating) -->
-         <div class="absolute inset-0 pointer-events-none z-10 p-4 flex flex-col justify-between">
-            <!-- Telemetry (Right Top) -->
-            <div class="flex justify-end">
-                <div class="pointer-events-auto">
-                    <slot name="telemetry"></slot>
-                </div>
-            </div>
+         <!-- 3. RIGHT CONTROL PANEL (Triple Stack) -->
+         <aside class="w-[450px] h-full bg-base-100 border-l border-white/10 flex flex-col overflow-hidden shadow-2xl z-20">
             
-            <!-- Chat (Bottom Right) -->
-            <div class="flex justify-end items-end">
-                <div class="w-96 max-h-[60vh] flex flex-col justify-end pointer-events-auto">
-                    <slot name="chat"></slot>
-                </div>
+            <!-- Top Section: Video (Edge-to-Edge) -->
+            <div class="relative border-b border-white/5 bg-black flex-none">
+                <slot name="video"></slot>
             </div>
-         </div>
+
+            <!-- Middle Section: Horizontal Telemetry Strip -->
+            <div class="p-4 bg-base-200/50 border-b border-white/5 flex-none">
+                <slot name="telemetry"></slot>
+            </div>
+
+            <!-- Bottom Section: Chat (Flex-1) -->
+            <div class="flex-1 flex flex-col min-h-0 bg-base-100">
+                <slot name="chat"></slot>
+            </div>
+
+         </aside>
       </div>
     </main>
 

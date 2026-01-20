@@ -138,10 +138,11 @@ onUnmounted(async () => {
     <template #map>
       <div ref="mapContainer" class="h-full w-full cesium-container"></div>
       <EntityLabels :labels="screenLabels" />
-      
-      <!-- Sensor Feed PiP (Bottom Left) -->
-      <div v-if="currentFlightData" class="absolute bottom-6 left-6 w-[320px] z-20 pointer-events-auto">
+    </template>
+
+    <template #video>
         <SensorFeed 
+          v-if="currentFlightData"
           :lat="currentFlightData.lat"
           :lng="currentFlightData.lng"
           :altitude="currentFlightData.altitude"
@@ -150,7 +151,6 @@ onUnmounted(async () => {
           :flightId="currentFlightData.flightId"
           :main-viewer="viewer"
         />
-      </div>
     </template>
 
     <template #telemetry>

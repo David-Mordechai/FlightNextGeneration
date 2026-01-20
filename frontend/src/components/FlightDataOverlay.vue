@@ -10,38 +10,40 @@ defineProps<{
 </script>
 
 <template>
-  <div class="p-5 bg-base-100/90 backdrop-blur-xl rounded-2xl border border-white/10 shadow-2xl w-60 text-slate-100">
-    <!-- Primary Stats -->
-    <div class="grid grid-cols-2 gap-4 mb-4">
-      <div class="flex flex-col gap-1">
-        <span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Altitude</span>
-        <div class="flex items-baseline">
-          <span class="text-3xl font-mono font-black leading-none text-white">{{ Math.round(altitude) }}</span>
-          <span class="text-[10px] text-white/20 ml-1 font-bold">FT</span>
-        </div>
-      </div>
-      <div class="flex flex-col gap-1 text-right">
-        <span class="text-[9px] font-bold uppercase tracking-widest text-white/40">Speed</span>
-        <div class="flex items-baseline justify-end">
-          <span class="text-3xl font-mono font-black leading-none text-white">{{ Math.round(speed) }}</span>
-          <span class="text-[10px] text-white/20 ml-1 font-bold">KTS</span>
-        </div>
+  <div class="flex items-center justify-between gap-6 text-white pointer-events-none">
+    
+    <!-- Altitude -->
+    <div class="flex flex-col gap-0">
+      <span class="text-[8px] font-black uppercase tracking-widest text-primary">ALT</span>
+      <div class="flex items-baseline">
+        <span class="text-xl font-mono font-black">{{ Math.round(altitude) }}</span>
+        <span class="text-[8px] opacity-40 ml-1">FT</span>
       </div>
     </div>
 
-    <!-- Footer: Heading and Coordinates -->
-    <div class="flex items-center justify-between border-t border-white/5 pt-4">
-      <div class="flex flex-col gap-0.5">
-          <span class="text-[8px] font-bold uppercase tracking-widest text-white/40">Heading</span>
-          <span class="text-xl font-mono font-black text-white leading-none">{{ Math.round(heading) }}°</span>
-      </div>
-      <div class="flex flex-col gap-0.5 text-right">
-          <span class="text-[8px] font-bold uppercase tracking-widest text-white/40">Position</span>
-          <div class="flex flex-col font-mono text-[11px] text-white/60 leading-tight">
-            <span>{{ lat.toFixed(4) }}°N</span>
-            <span>{{ lng.toFixed(4) }}°E</span>
-          </div>
+    <!-- Speed -->
+    <div class="flex flex-col gap-0">
+      <span class="text-[8px] font-black uppercase tracking-widest text-accent">SPD</span>
+      <div class="flex items-baseline">
+        <span class="text-xl font-mono font-black">{{ Math.round(speed) }}</span>
+        <span class="text-[8px] opacity-40 ml-1">KTS</span>
       </div>
     </div>
+
+    <!-- Heading -->
+    <div class="flex flex-col gap-0">
+      <span class="text-[8px] font-black uppercase tracking-widest text-white/40">HDG</span>
+      <span class="text-xl font-mono font-black">{{ Math.round(heading) }}°</span>
+    </div>
+
+    <!-- Position -->
+    <div class="flex-1 flex flex-col gap-0 text-right">
+      <span class="text-[8px] font-black uppercase tracking-widest text-white/40">POS (LL)</span>
+      <div class="flex gap-2 justify-end font-mono text-[10px] font-bold text-white/60">
+        <span>{{ lat.toFixed(4) }}°N</span>
+        <span>{{ lng.toFixed(4) }}°E</span>
+      </div>
+    </div>
+
   </div>
 </template>

@@ -347,7 +347,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 } catch (e) {
                     return undefined;
                 }
-            }, { yOffset: 60 });
+            }, { yOffset: 20 });
         });
     };
 

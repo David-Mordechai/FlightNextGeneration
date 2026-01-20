@@ -97,7 +97,7 @@ const timestamp = computed(() => {
 </script>
 
 <template>
-  <div class="sensor-feed-container border-2 border-white/20 rounded-lg overflow-hidden shadow-2xl bg-black relative">
+  <div class="sensor-feed-container overflow-hidden bg-black relative">
     <!-- Real Cesium Video Feed -->
     <div ref="payloadContainer" class="absolute inset-0 w-full h-full"></div>
     
@@ -105,19 +105,19 @@ const timestamp = computed(() => {
     <div class="absolute inset-0 noise-overlay opacity-5 pointer-events-none"></div>
 
     <!-- HUD Overlay -->
-    <div class="absolute inset-0 p-4 flex flex-col justify-between font-mono text-[10px] text-lime-400 pointer-events-none uppercase tracking-wider z-10">
+    <div class="absolute inset-0 p-4 flex flex-col justify-between font-mono text-[10px] text-yellow-400 pointer-events-none uppercase tracking-wider z-10 drop-shadow-[0_1px_2px_rgba(0,0,0,0.8)]">
       
       <!-- Top HUD -->
       <div class="flex justify-between items-start">
         <div class="flex flex-col gap-1">
           <div class="flex items-center gap-2">
-            <span class="w-2 h-2 bg-red-600 rounded-full animate-pulse"></span>
-            <span>REC [LIVE]</span>
+            <span class="w-2 h-2 bg-red-600 rounded-full animate-pulse shadow-[0_0_5px_red]"></span>
+            <span class="font-bold">REC [LIVE]</span>
           </div>
-          <span>{{ flightId }}</span>
-          <span>SENS: EO/IR-V2</span>
+          <span class="font-bold">{{ flightId }}</span>
+          <span class="opacity-80">SENS: EO/IR-V2</span>
         </div>
-        <div class="text-right">
+        <div class="text-right font-bold">
           <span>{{ timestamp }} UTC</span>
           <br/>
           <span>ALT: {{ Math.round(altitude) }} FT</span>
@@ -125,27 +125,27 @@ const timestamp = computed(() => {
       </div>
 
       <!-- Center Crosshair -->
-      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 opacity-60">
+      <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-32 h-32 opacity-80">
         <!-- Brackets -->
-        <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-lime-400"></div>
-        <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-lime-400"></div>
-        <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-lime-400"></div>
-        <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-lime-400"></div>
+        <div class="absolute top-0 left-0 w-4 h-4 border-t-2 border-l-2 border-yellow-400"></div>
+        <div class="absolute top-0 right-0 w-4 h-4 border-t-2 border-r-2 border-yellow-400"></div>
+        <div class="absolute bottom-0 left-0 w-4 h-4 border-b-2 border-l-2 border-yellow-400"></div>
+        <div class="absolute bottom-0 right-0 w-4 h-4 border-b-2 border-r-2 border-yellow-400"></div>
         
         <!-- Center Dot -->
-        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-lime-400 rounded-full"></div>
+        <div class="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-1 h-1 bg-yellow-400 rounded-full"></div>
         
         <!-- Dynamic Yaw Scale -->
         <div class="absolute -bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center">
-            <span>HDG: {{ Math.round((yaw + 360) % 360) }}°</span>
-            <div class="w-24 h-1 border-b border-lime-400/50 mt-1 relative">
-                <div class="absolute top-0 h-2 w-0.5 bg-lime-400 left-1/2"></div>
+            <span class="font-bold">HDG: {{ Math.round((yaw + 360) % 360) }}°</span>
+            <div class="w-24 h-1 border-b border-yellow-400/50 mt-1 relative">
+                <div class="absolute top-0 h-2 w-0.5 bg-yellow-400 left-1/2"></div>
             </div>
         </div>
       </div>
 
       <!-- Bottom HUD -->
-      <div class="flex justify-between items-end">
+      <div class="flex justify-between items-end font-bold">
         <div class="flex flex-col gap-1">
           <span>COORDS: {{ formattedCoords }}</span>
           <div class="flex gap-4">
@@ -155,7 +155,7 @@ const timestamp = computed(() => {
         </div>
         <div class="text-right">
           <div class="flex flex-col items-end">
-            <span class="text-xs font-bold">FOV: 15.0°</span>
+            <span class="text-xs font-black">FOV: 15.0°</span>
             <span>ZOOM: 4.0X</span>
           </div>
         </div>
@@ -170,7 +170,7 @@ const timestamp = computed(() => {
 
 <style scoped>
 .sensor-feed-container {
-  aspect-ratio: 16 / 9;
+  height: 350px;
   width: 100%;
 }
 
