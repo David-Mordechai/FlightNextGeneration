@@ -29,6 +29,11 @@ public class FlightStateService
     private double TargetSpeedKts { get; set; } = 105;
     private double TargetAltitudeFt { get; set; } = 4000;
 
+    // Payload (Camera Gimbal) State
+    public double PayloadPitch { get; private set; } = -45; // Degrees (down)
+    public double PayloadYaw { get; private set; } = 0;    // Degrees (relative to North)
+    private (double Lat, double Lng)? PayloadLockLocation { get; set; }
+
     // Current internal telemetry (for smoothing)
     public double CurrentSpeedKts { get; private set; } = 105;
     public double CurrentAltitudeFt { get; private set; } = 4000;
@@ -41,11 +46,14 @@ public class FlightStateService
         Altitude = CurrentAltitudeFt,
         Speed = CurrentSpeedKts,
         TargetLat,
-        TargetLng
+        TargetLng,
+        PayloadPitch,
+        PayloadYaw
     };
 
     // Physics Constants
     private const double BaseStepPerKnotTick = 0.000025 / 105.0; // Normalized step per knot (assuming 20Hz)
+    private const double FEET_TO_METERS = 0.3048;
 
     public void UpdatePhysics()
     {
@@ -59,12 +67,45 @@ public class FlightStateService
         if (Math.Abs(altDelta) > 1.0)
             CurrentAltitudeFt += Math.Sign(altDelta) * 0.5;
 
-        // 3. Calculate movement step based on current speed
+        // 3. Update Payload Gimbal
+        UpdatePayload();
+
+        // 4. Calculate movement step based on current speed
         var currentStep = CurrentSpeedKts * BaseStepPerKnotTick;
 
         if (Mode == FlightMode.Transiting)
             UpdateTransit(currentStep);
         else if (Mode == FlightMode.Orbiting) UpdateOrbit(currentStep);
+    }
+
+    private void UpdatePayload()
+    {
+        if (PayloadLockLocation.HasValue)
+        {
+            var lockPos = PayloadLockLocation.Value;
+            
+            // Calculate Yaw (Bearing from UAV to Target)
+            var dLng = (lockPos.Lng - CurrentLng) * Math.Cos(CurrentLat * Math.PI / 180);
+            var dLat = lockPos.Lat - CurrentLat;
+            PayloadYaw = Math.Atan2(dLng, dLat) * 180 / Math.PI;
+
+            // Calculate Pitch (Angle down to target)
+            var horizontalDistMeters = Math.Sqrt(dLng * dLng + dLat * dLat) * 111320; // Approx meters
+            var altMeters = CurrentAltitudeFt * FEET_TO_METERS;
+            PayloadPitch = -Math.Atan2(altMeters, horizontalDistMeters) * 180 / Math.PI;
+        }
+    }
+
+    public void PointPayload(double lat, double lng)
+    {
+        PayloadLockLocation = (lat, lng);
+    }
+
+    public void ResetPayload()
+    {
+        PayloadLockLocation = null;
+        PayloadPitch = -45;
+        PayloadYaw = 0;
     }
 
     private void UpdateTransit(double step)

@@ -35,7 +35,9 @@ public class FlightSimulationWorker(
                 displayAlt, 
                 displaySpeed, 
                 state.TargetLat, 
-                state.TargetLng, 
+                state.TargetLng,
+                state.PayloadPitch,
+                state.PayloadYaw,
                 cancellationToken: stoppingToken
             );
 

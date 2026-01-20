@@ -13,9 +13,13 @@ import MissionChat from './MissionChat.vue';
 import NoFlyZoneModal from './NoFlyZoneModal.vue';
 import PointModal from './PointModal.vue';
 import EntityLabels from './EntityLabels.vue';
+import SensorFeed from './SensorFeed.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const viewer = shallowRef<Cesium.Viewer | null>(null);
+
+// Expose viewer for PiP sub-rendering
+defineExpose({ viewer });
 
 // Shared Labels
 const { screenLabels, initializeLabelSystem, destroyLabelSystem } = useScreenLabels();
@@ -134,6 +138,19 @@ onUnmounted(async () => {
     <template #map>
       <div ref="mapContainer" class="h-full w-full cesium-container"></div>
       <EntityLabels :labels="screenLabels" />
+      
+      <!-- Sensor Feed PiP (Bottom Left) -->
+      <div v-if="currentFlightData" class="absolute bottom-6 left-6 w-[320px] z-20 pointer-events-auto">
+        <SensorFeed 
+          :lat="currentFlightData.lat"
+          :lng="currentFlightData.lng"
+          :altitude="currentFlightData.altitude"
+          :pitch="currentFlightData.payloadPitch"
+          :yaw="currentFlightData.payloadYaw"
+          :flightId="currentFlightData.flightId"
+          :main-viewer="viewer"
+        />
+      </div>
     </template>
 
     <template #telemetry>

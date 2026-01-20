@@ -166,4 +166,51 @@ public class Tools
             return "Fail to communicate with the client";
         }
     }
+
+    [McpServerTool, Description("Direct the UAV's camera gimbal to lock onto a named ground location.")]
+    public async Task<string> PointPayload(
+        [Description("The name of the location to point the camera at."), Required] string location)
+    {
+        try
+        {
+            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
+            if (!targetCoords.HasValue) return $"Could not find coordinates for {location}.";
+
+            var json = JsonSerializer.Serialize(new
+            {
+                lat = targetCoords.Value.Lat,
+                lng = targetCoords.Value.Lng
+            });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var res = await _httpClient.PostAsync("api/mission/payload/point", content);
+
+            if (!res.IsSuccessStatusCode) return $"Fail to point camera at {location}.";
+
+            _logger.LogInformation("Camera gimbal locked to {Location}.", location);
+            return $"Camera gimbal locked to {location}. Sensor footprint updated on map.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fail to communicate with the service");
+            return "Fail to communicate with the service";
+        }
+    }
+
+    [McpServerTool, Description("Reset the UAV's camera gimbal to its default forward-looking scan mode.")]
+    public async Task<string> ResetPayload()
+    {
+        try
+        {
+            var res = await _httpClient.PostAsync("api/mission/payload/reset", null);
+            if (!res.IsSuccessStatusCode) return "Fail to reset camera gimbal.";
+
+            _logger.LogInformation("Camera gimbal reset to scan mode.");
+            return "Camera gimbal reset to default scan mode.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fail to communicate with the service");
+            return "Fail to communicate with the service";
+        }
+    }
 }

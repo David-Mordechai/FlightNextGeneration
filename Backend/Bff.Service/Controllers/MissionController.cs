@@ -9,6 +9,7 @@ namespace Bff.Service.Controllers;
 public record TargetRequest(double Lat, double Lng);
 public record SpeedRequest(double Speed);
 public record AltitudeRequest(double Altitude);
+public record PayloadPointRequest(double Lat, double Lng);
 public record RouteData(object Path, double Distance);
 
 [ApiController]
@@ -20,6 +21,20 @@ public class MissionController(FlightStateService flightState, IHubContext<Fligh
     {
         var result = await aiChatService.ProcessUserMessage(message);
         return Ok(result);
+    }
+
+    [HttpPost("payload/point")]
+    public IActionResult PointPayload([FromBody] PayloadPointRequest request)
+    {
+        flightState.PointPayload(request.Lat, request.Lng);
+        return Ok(new { Message = "Sensor locked to target location." });
+    }
+
+    [HttpPost("payload/reset")]
+    public IActionResult ResetPayload()
+    {
+        flightState.ResetPayload();
+        return Ok(new { Message = "Sensor reset to default scan mode." });
     }
 
     [HttpPost("target")]

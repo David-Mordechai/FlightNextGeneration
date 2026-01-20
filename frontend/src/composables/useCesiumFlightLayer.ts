@@ -28,6 +28,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         altitude: number;
         speed: number;
         heading: number;
+        payloadPitch: number;
+        payloadYaw: number;
     } | null>(null);
 
     const FEET_TO_METERS = 0.3048;
@@ -111,13 +113,34 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             }
         });
 
-        signalRService.onReceiveFlightData((flightId: string, lat: number, lng: number, heading: number, altitude: number, speed: number, targetLat: number, targetLng: number) => {
+        signalRService.onReceiveFlightData((flightId, lat, lng, heading, altitude, speed, targetLat, targetLng, payloadPitch, payloadYaw) => {
             if (!currentViewer) return;
 
             const position = Cesium.Cartesian3.fromDegrees(lng, lat, altitude * FEET_TO_METERS);
             
-            currentFlightData.value = { flightId, lat, lng, altitude, speed, heading };
+            currentFlightData.value = { flightId, lat, lng, altitude, speed, heading, payloadPitch, payloadYaw };
             flightTargets.set(flightId, { lat: targetLat, lng: targetLng });
+
+            // One-time centering (Top-Down)
+            if (!hasCentered.value) {
+                currentViewer.camera.flyTo({
+                    destination: Cesium.Cartesian3.fromDegrees(lng, lat, (altitude * FEET_TO_METERS) + 3000),
+                    orientation: {
+                        heading: Cesium.Math.toRadians(0),
+                        pitch: Cesium.Math.toRadians(-90),
+                        roll: 0.0
+                    }
+                });
+                hasCentered.value = true;
+            }
+
+            // --- Arrival Detection ---
+            if (finalDestination.value) {
+                const distToFinal = Math.sqrt(Math.pow(lat - finalDestination.value.lat, 2) + Math.pow(lng - finalDestination.value.lng, 2));
+                if (distToFinal < 0.012) { 
+                    clearOptimalPath();
+                }
+            }
 
             // 1. Projected Path (Digital Pulse Beam)
             if (!projectedPathEntities.has(flightId)) {
@@ -156,7 +179,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                                 } else {
                                     beamTargetAlt = targetHeightCache.get('final') || 0;
                                 }
-                            } else {
+                            }
+                            else {
                                 beamTargetAlt = targetHeightCache.get(flightId) || 0;
                             }
 
@@ -196,13 +220,15 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     
                     if (entity.position instanceof Cesium.SampledPositionProperty) {
                         entity.position.addSample(futureTime, position);
-                    } else {
+                    }
+                    else {
                         const sampled = new Cesium.SampledPositionProperty();
                         sampled.addSample(futureTime, position);
                         entity.position = sampled;
                     }
                 }
-            } else {
+            }
+            else {
                 console.log("Creating 3D UAV Model for", flightId);
                 
                 if (!currentViewer.clock.shouldAnimate) {
@@ -241,6 +267,72 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     // NO CESIUM LABEL
                 });
                 uavEntities.set(flightId, entity);
+
+                // --- SENSOR FOOTPRINT & FRUSTUM ---
+                const calculateFootprintCorners = (data: any) => {
+                    const altMeters = data.altitude * FEET_TO_METERS;
+                    const pitchRad = Cesium.Math.toRadians(data.payloadPitch);
+                    const yawRad = Cesium.Math.toRadians(data.payloadYaw);
+                    const halfFov = Cesium.Math.toRadians(15); // 30 deg total FOV
+
+                    const corners = [];
+                    // 4 Corners of the FOV cone
+                    const offsets = [
+                        { p: -halfFov, y: -halfFov },
+                        { p: -halfFov, y: halfFov },
+                        { p: halfFov, y: halfFov },
+                        { p: halfFov, y: -halfFov }
+                    ];
+
+                    for (const offset of offsets) {
+                        const effectivePitch = pitchRad + offset.p;
+                        const effectiveYaw = yawRad + offset.y;
+                        
+                        // Distance to ground (clamped to avoid infinity at horizon)
+                        const dist = altMeters / Math.max(0.01, Math.tan(Math.abs(effectivePitch)));
+                        const lng = data.lng + (dist / 111320) * Math.sin(effectiveYaw);
+                        const lat = data.lat + (dist / 111320) * Math.cos(effectiveYaw);
+                        corners.push(Cesium.Cartesian3.fromDegrees(lng, lat, 0));
+                    }
+                    return corners;
+                };
+
+                // 1. Ground Footprint (Polygon)
+                currentViewer.entities.add({
+                    polygon: {
+                        hierarchy: new Cesium.CallbackProperty(() => {
+                            const data = currentFlightData.value;
+                            if (!data) return undefined;
+                            return new Cesium.PolygonHierarchy(calculateFootprintCorners(data));
+                        }, false) as any,
+                        material: Cesium.Color.LIME.withAlpha(0.2),
+                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                        outline: false
+                    }
+                });
+
+                // 2. Frustum Volume (4 Side Faces)
+                for (let i = 0; i < 4; i++) {
+                    const nextIdx = (i + 1) % 4;
+
+                    // Side Face (Volume)
+                    currentViewer.entities.add({
+                        polygon: {
+                            hierarchy: new Cesium.CallbackProperty(() => {
+                                const data = currentFlightData.value;
+                                const uav = uavEntities.get(flightId);
+                                if (!data || !uav || !viewer.value) return undefined;
+                                const uavPos = uav.position?.getValue(currentViewer.clock.currentTime);
+                                if (!uavPos) return undefined;
+                                const corners = calculateFootprintCorners(data);
+                                return new Cesium.PolygonHierarchy([uavPos, corners[i], corners[nextIdx]]);
+                            }, false) as any,
+                            material: Cesium.Color.LIME.withAlpha(0.08),
+                            perPositionHeight: true,
+                            outline: false
+                        }
+                    });
+                }
             }
 
             // Register HTML Label for UAV
