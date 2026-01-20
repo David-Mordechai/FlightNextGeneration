@@ -205,7 +205,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             }
 
             // 2. UAV Marker (Procedural 3D Shape)
-            const headingRadians = Cesium.Math.toRadians(heading - 90); 
+            const headingRadians = Cesium.Math.toRadians(heading + 90); 
             const pitchRadians = 0;
             const rollRadians = 0;
             const hpr = new Cesium.HeadingPitchRoll(headingRadians, pitchRadians, rollRadians);
@@ -221,14 +221,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     if (entity.position instanceof Cesium.SampledPositionProperty) {
                         entity.position.addSample(futureTime, position);
                     }
-                    else {
-                        const sampled = new Cesium.SampledPositionProperty();
-                        sampled.addSample(futureTime, position);
-                        entity.position = sampled;
-                    }
                 }
-            }
-            else {
+            } else {
                 console.log("Creating 3D UAV Model for", flightId);
                 
                 if (!currentViewer.clock.shouldAnimate) {
@@ -245,55 +239,51 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     orientation: orientation,
                     // Using a high-quality public 3D aircraft model
                     model: {
-                        uri: 'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',
-                        minimumPixelSize: 128, 
+                        uri: '/ORBITER4.gltf',
+                        minimumPixelSize: 120, // Large minimum size to stay visible on the globe
                         maximumScale: 10000,
-                        scale: 15.0, 
+                        scale: 0.5, // Reasonable base scale for close-up
                         color: Cesium.Color.WHITE.withAlpha(1.0),
                         colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
                         heightReference: Cesium.HeightReference.NONE
                     },
-                    // Add a trail
-                    path: {
-                        resolution: 1,
-                        material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.1,
-                            color: Cesium.Color.CYAN
-                        }),
-                        width: 5,
-                        leadTime: 0,
-                        trailTime: 5 // 5 Seconds trail
-                    },
-                    // NO CESIUM LABEL
                 });
                 uavEntities.set(flightId, entity);
 
-                // --- SENSOR FOOTPRINT & FRUSTUM ---
-                const calculateFootprintCorners = (data: any) => {
-                    const altMeters = data.altitude * FEET_TO_METERS;
-                    const pitchRad = Cesium.Math.toRadians(data.payloadPitch);
-                    const yawRad = Cesium.Math.toRadians(data.payloadYaw);
-                    const halfFov = Cesium.Math.toRadians(15); // 30 deg total FOV
+                // --- SENSOR FOOTPRINT & FRUSTUM (Distance-Aware Fix) ---
+                const calculateFootprintCorners = (data: any): Cesium.Cartesian3[] => {
+                    const uav = uavEntities.get(flightId);
+                    const uavPos = uav?.position?.getValue(currentViewer.clock.currentTime);
+                    if (!uavPos) return [];
 
-                    const corners = [];
-                    // 4 Corners of the FOV cone
-                    const offsets = [
-                        { p: -halfFov, y: -halfFov },
-                        { p: -halfFov, y: halfFov },
-                        { p: halfFov, y: halfFov },
-                        { p: halfFov, y: -halfFov }
+                    const altMeters = data.altitude * FEET_TO_METERS;
+                    const yawRad = Cesium.Math.toRadians(data.payloadYaw);
+                    const pitchRad = Cesium.Math.toRadians(data.payloadPitch);
+                    
+                    // 1. Calculate the ground intersection point
+                    // Slant range distance on ground
+                    const groundDist = altMeters / Math.tan(Math.abs(pitchRad));
+                    
+                    // Degrees offset (approximate with earth curvature correction)
+                    const latOffset = (groundDist / 111320) * Math.cos(yawRad);
+                    const lngOffset = (groundDist / (111320 * Math.cos(Cesium.Math.toRadians(data.lat)))) * Math.sin(yawRad);
+                    
+                    const centerLat = data.lat + latOffset;
+                    const centerLng = data.lng + lngOffset;
+
+                    // 2. Calculate corners around the intercept point
+                    // Focused Tactical FOV (approx 10 deg total)
+                    const slantRange = altMeters / Math.sin(Math.abs(pitchRad));
+                    const widthMeters = slantRange * Math.tan(Cesium.Math.toRadians(5)); // 5 deg half-angle
+                    const wDeg = widthMeters / 111320;
+
+                    const corners: Cesium.Cartesian3[] = [
+                        Cesium.Cartesian3.fromDegrees(centerLng - wDeg, centerLat - wDeg, 0),
+                        Cesium.Cartesian3.fromDegrees(centerLng + wDeg, centerLat - wDeg, 0),
+                        Cesium.Cartesian3.fromDegrees(centerLng + wDeg, centerLat + wDeg, 0),
+                        Cesium.Cartesian3.fromDegrees(centerLng - wDeg, centerLat + wDeg, 0)
                     ];
 
-                    for (const offset of offsets) {
-                        const effectivePitch = pitchRad + offset.p;
-                        const effectiveYaw = yawRad + offset.y;
-                        
-                        // Distance to ground (clamped to avoid infinity at horizon)
-                        const dist = altMeters / Math.max(0.01, Math.tan(Math.abs(effectivePitch)));
-                        const lng = data.lng + (dist / 111320) * Math.sin(effectiveYaw);
-                        const lat = data.lat + (dist / 111320) * Math.cos(effectiveYaw);
-                        corners.push(Cesium.Cartesian3.fromDegrees(lng, lat, 0));
-                    }
                     return corners;
                 };
 
@@ -325,7 +315,10 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                                 const uavPos = uav.position?.getValue(currentViewer.clock.currentTime);
                                 if (!uavPos) return undefined;
                                 const corners = calculateFootprintCorners(data);
-                                return new Cesium.PolygonHierarchy([uavPos, corners[i], corners[nextIdx]]);
+                                const c1 = corners[i];
+                                const c2 = corners[nextIdx];
+                                if (c1 === undefined || c2 === undefined) return undefined;
+                                return new Cesium.PolygonHierarchy([uavPos, c1, c2]);
                             }, false) as any,
                             material: Cesium.Color.LIME.withAlpha(0.08),
                             perPositionHeight: true,
@@ -347,7 +340,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 } catch (e) {
                     return undefined;
                 }
-            }, { yOffset: 20 });
+            }, { yOffset: 35 });
         });
     };
 

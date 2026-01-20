@@ -85,76 +85,14 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
         }
     };
 
-    // Helper to generate crisp HUD marker images
-    const createMarkerImage = (type: PointType, colorCss: string) => {
-        const size = 128;
-        const canvas = document.createElement('canvas');
-        canvas.width = size;
-        canvas.height = size;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return '';
-
-        ctx.shadowColor = 'rgba(0,0,0,0.4)';
-        ctx.shadowBlur = 15;
-        ctx.shadowOffsetY = 5;
-
-        if (type === PointType.Home) {
-            ctx.fillStyle = colorCss;
-            ctx.strokeStyle = '#FFFFFF';
-            ctx.lineWidth = 6;
-            ctx.beginPath();
-            ctx.arc(64, 50, 40, 0, Math.PI * 2);
-            ctx.moveTo(64, 128); // Touch bottom
-            ctx.lineTo(30, 70);
-            ctx.lineTo(98, 70);
-            ctx.lineTo(64, 128);
-            ctx.fill();
-            ctx.stroke();
-            ctx.shadowColor = 'transparent';
-            ctx.fillStyle = '#FFFFFF';
-            const iconScale = 0.5;
-            ctx.translate(64, 50);
-            ctx.scale(iconScale, iconScale);
-            ctx.translate(-64, -64);
-            ctx.beginPath();
-            ctx.moveTo(64, 30);
-            ctx.lineTo(96, 60);
-            ctx.lineTo(96, 98);
-            ctx.lineTo(32, 98);
-            ctx.lineTo(32, 60);
-            ctx.fill();
-        } else {
-            ctx.strokeStyle = colorCss;
-            ctx.lineWidth = 10;
-            ctx.beginPath();
-            ctx.arc(64, 64, 45, 0, Math.PI * 2);
-            ctx.stroke();
-            ctx.lineWidth = 8;
-            ctx.beginPath();
-            ctx.moveTo(64, 10); ctx.lineTo(64, 35);
-            ctx.moveTo(64, 93); ctx.lineTo(64, 118);
-            ctx.moveTo(10, 64); ctx.lineTo(35, 64);
-            ctx.moveTo(93, 64); ctx.lineTo(118, 64);
-            ctx.stroke();
-            ctx.fillStyle = colorCss;
-            ctx.beginPath();
-            ctx.arc(64, 64, 8, 0, Math.PI * 2);
-            ctx.fill();
-        }
-        return canvas.toDataURL();
-    };
-
     const createPointEntity = (point: Point) => {
         const currentViewer = viewer.value;
         if (!currentViewer) return;
 
         try {
             const isHome = (point.type === PointType.Home || (point as any).type === 0);
-            const colorCss = isHome ? '#2563EB' : '#DC2626';
-            const markerImage = createMarkerImage(isHome ? PointType.Home : PointType.Target, colorCss);
             
             let cachedHeight = currentViewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(point.location.coordinates[0], point.location.coordinates[1])) || 0;
-            
             const carto = Cesium.Cartographic.fromDegrees(point.location.coordinates[0], point.location.coordinates[1]);
             Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then((samples) => {
                 if (samples && samples[0] && samples[0].height !== undefined) {
@@ -164,28 +102,29 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
 
             if (entityMap.has(point.id!)) {
                 currentViewer.entities.remove(entityMap.get(point.id!)!);
-                unregisterLabel(point.id!);
-            }
+                unregisterLabel(point.id!);            }
 
+            const position = new Cesium.CallbackProperty(() => {
+                return Cesium.Cartesian3.fromDegrees(point.location.coordinates[0], point.location.coordinates[1], 0);
+            }, false);
+
+            // Simple Billboard Marker (No effects)
             const entity = currentViewer.entities.add({
                 id: point.id,
-                position: new Cesium.CallbackProperty(() => {
-                    return Cesium.Cartesian3.fromDegrees(point.location.coordinates[0], point.location.coordinates[1], 0);
-                }, false) as any,
+                position: position as any,
                 billboard: {
-                    image: markerImage,
+                    image: isHome ? '/home.svg' : '/target.svg',
                     scale: 0.6,
                     verticalOrigin: isHome ? Cesium.VerticalOrigin.BOTTOM : Cesium.VerticalOrigin.CENTER,
                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
                     disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND, 
-                    scaleByDistance: new Cesium.NearFarScalar(1.0e2, 0.6, 8.0e6, 0.3) 
+                    heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                    scaleByDistance: new Cesium.NearFarScalar(1.0e3, 0.6, 5.0e5, 0.2)
                 },
                 properties: { isPoint: true, type: point.type }
             });
 
             const yOffsetBase = isHome ? 50 : 35;
-            
             registerLabel(point.id!, point.name.toUpperCase(), isHome ? 'home' : 'target', () => {
                 return Cesium.Cartesian3.fromDegrees(point.location.coordinates[0], point.location.coordinates[1], cachedHeight);
             }, { yOffset: yOffsetBase });
@@ -206,13 +145,6 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
             currentViewer.entities.remove(entityMap.get(zone.id!)!);
             unregisterLabel(zone.id!);
         }
-
-        const wallRimPositions = new Cesium.CallbackProperty(() => {
-            const loopCoords = [...zone.geometry.coordinates[0]];
-            if (loopCoords.length > 0 && loopCoords[0]) loopCoords.push(loopCoords[0]);
-            const flatPositions = loopCoords.flatMap(c => c ? [c[0], c[1], zone.maxAltitude * FEET_TO_METERS] : []) as number[];
-            return Cesium.Cartesian3.fromDegreesArrayHeights(flatPositions);
-        }, false);
 
         const entity = currentViewer.entities.add({
             id: zone.id,

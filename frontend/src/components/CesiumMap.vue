@@ -72,6 +72,7 @@ onMounted(async () => {
       useBrowserRecommendedResolution: true,
       requestRenderMode: true, // Only render when scene changes
       maximumRenderTimeChange: 0.033, // Match 30fps max
+      showRenderLoopErrors: false, // Disable the intrusive error popup
     });
 
     // Disable heavy effects

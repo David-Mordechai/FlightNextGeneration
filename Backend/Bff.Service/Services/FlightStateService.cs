@@ -67,32 +67,49 @@ public class FlightStateService
         if (Math.Abs(altDelta) > 1.0)
             CurrentAltitudeFt += Math.Sign(altDelta) * 0.5;
 
-        // 3. Update Payload Gimbal
-        UpdatePayload();
-
-        // 4. Calculate movement step based on current speed
+        // 3. Calculate movement step based on current speed
         var currentStep = CurrentSpeedKts * BaseStepPerKnotTick;
 
         if (Mode == FlightMode.Transiting)
             UpdateTransit(currentStep);
         else if (Mode == FlightMode.Orbiting) UpdateOrbit(currentStep);
+
+        // 4. Update Payload Gimbal (After position update for sync)
+        UpdatePayload();
     }
 
     private void UpdatePayload()
     {
-        if (PayloadLockLocation.HasValue)
+        double? tLat = PayloadLockLocation?.Lat;
+        double? tLng = PayloadLockLocation?.Lng;
+
+        // Fallback to navigation target if transiting and no manual lock is set
+        if (!tLat.HasValue && Mode == FlightMode.Transiting)
         {
-            var lockPos = PayloadLockLocation.Value;
-            
+            tLat = TargetLat;
+            tLng = TargetLng;
+        }
+
+        if (tLat.HasValue && tLng.HasValue)
+        {
             // Calculate Yaw (Bearing from UAV to Target)
-            var dLng = (lockPos.Lng - CurrentLng) * Math.Cos(CurrentLat * Math.PI / 180);
-            var dLat = lockPos.Lat - CurrentLat;
+            var dLng = (tLng.Value - CurrentLng) * Math.Cos(CurrentLat * Math.PI / 180);
+            var dLat = tLat.Value - CurrentLat;
             PayloadYaw = Math.Atan2(dLng, dLat) * 180 / Math.PI;
 
             // Calculate Pitch (Angle down to target)
             var horizontalDistMeters = Math.Sqrt(dLng * dLng + dLat * dLat) * 111320; // Approx meters
             var altMeters = CurrentAltitudeFt * FEET_TO_METERS;
+            
+            // Avoid division by zero and handle very close targets
+            if (horizontalDistMeters < 10) horizontalDistMeters = 10;
             PayloadPitch = -Math.Atan2(altMeters, horizontalDistMeters) * 180 / Math.PI;
+        }
+        else if (Mode == FlightMode.Orbiting && !PayloadLockLocation.HasValue)
+        {
+            // Default: Look forward and slightly down while orbiting
+            PayloadYaw = GetHeading();
+            PayloadPitch = -45;
         }
     }
 
