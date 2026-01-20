@@ -108,23 +108,25 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
                 return Cesium.Cartesian3.fromDegrees(point.location.coordinates[0], point.location.coordinates[1], 0);
             }, false);
 
-            // Simple Billboard Marker (No effects)
+            // Create Unified Billboard Entity (Icon - High Visibility)
             const entity = currentViewer.entities.add({
                 id: point.id,
                 position: position as any,
                 billboard: {
-                    image: isHome ? '/home.svg' : '/target.svg',
-                    scale: 0.6,
+                    image: isHome ? '/antena.png' : '/target.Png',
+                    scale: 0.32, 
                     verticalOrigin: isHome ? Cesium.VerticalOrigin.BOTTOM : Cesium.VerticalOrigin.CENTER,
                     horizontalOrigin: Cesium.HorizontalOrigin.CENTER,
-                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    // FIRMLY ATTACHED TO GROUND
                     heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
-                    scaleByDistance: new Cesium.NearFarScalar(1.0e3, 0.6, 5.0e5, 0.2)
+                    disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                    eyeOffset: new Cesium.Cartesian3(0, 0, 100.0),
+                    scaleByDistance: new Cesium.NearFarScalar(1.0e3, 0.32, 1.0e7, 0.15)
                 },
                 properties: { isPoint: true, type: point.type }
             });
 
-            const yOffsetBase = isHome ? 50 : 35;
+            const yOffsetBase = isHome ? 60 : 30; // Closer connection for the target icon
             registerLabel(point.id!, point.name.toUpperCase(), isHome ? 'home' : 'target', () => {
                 return Cesium.Cartesian3.fromDegrees(point.location.coordinates[0], point.location.coordinates[1], cachedHeight);
             }, { yOffset: yOffsetBase });

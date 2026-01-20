@@ -77,7 +77,7 @@ export class TacticalBeamMaterialProperty {
     get speed() { return this._speed; }
 
     getType(_time: Cesium.JulianDate) {
-        return 'TacticalBeam';
+        return 'TacticalBeamV3';
     }
 
     getValue(_time: Cesium.JulianDate, result: any) {
@@ -100,54 +100,56 @@ export class TacticalBeamMaterialProperty {
 
 // Register the Material
 export function registerCustomMaterials() {
-    if ((Cesium.Material as any).PolylineFlowType) return; // Already registered
-
-    (Cesium.Material as any).PolylineFlowType = 'PolylineFlow';
-    (Cesium.Material as any)._materialCache.addMaterial('PolylineFlow', {
-        fabric: {
-            type: 'PolylineFlow',
-            uniforms: {
-                color: new Cesium.Color(1.0, 1.0, 1.0, 1.0),
-                image: '',
-                speed: 1,
-                time: 0
+    // Register PolylineFlow if not present
+    if (!(Cesium.Material as any)._materialCache.getMaterial('PolylineFlow')) {
+        (Cesium.Material as any).PolylineFlowType = 'PolylineFlow';
+        (Cesium.Material as any)._materialCache.addMaterial('PolylineFlow', {
+            fabric: {
+                type: 'PolylineFlow',
+                uniforms: {
+                    color: new Cesium.Color(1.0, 1.0, 1.0, 1.0),
+                    image: '',
+                    speed: 1,
+                    time: 0
+                },
+                source: `
+                    czm_material czm_getMaterial(czm_materialInput materialInput)
+                    {
+                        czm_material material = czm_getDefaultMaterial(materialInput);
+                        vec2 st = materialInput.st;
+                        
+                        // Animate the texture coordinates
+                        float time = time * speed;
+                        float s = fract(st.s - time);
+                        
+                        // Sample the gradient image
+                        vec4 colorImage = texture(image, vec2(s, 0.5));
+                        
+                        // Multiply with base color
+                        material.alpha = colorImage.a * color.a;
+                        material.diffuse = color.rgb * colorImage.rgb;
+                        
+                        // Add a glow/emission effect
+                        material.emission = material.diffuse * 1.5;
+                        
+                        return material;
+                    }
+                `
             },
-            source: `
-                czm_material czm_getMaterial(czm_materialInput materialInput)
-                {
-                    czm_material material = czm_getDefaultMaterial(materialInput);
-                    vec2 st = materialInput.st;
-                    
-                    // Animate the texture coordinates
-                    float time = time * speed;
-                    float s = fract(st.s - time);
-                    
-                    // Sample the gradient image
-                    vec4 colorImage = texture(image, vec2(s, 0.5));
-                    
-                    // Multiply with base color
-                    material.alpha = colorImage.a * color.a;
-                    material.diffuse = color.rgb * colorImage.rgb;
-                    
-                    // Add a glow/emission effect
-                    material.emission = material.diffuse * 1.5;
-                    
-                    return material;
-                }
-            `
-        },
-        translucent: function(_material: any) {
-            return true;
-        }
-    });
+            translucent: function(_material: any) {
+                return true;
+            }
+        });
+    }
 
-    (Cesium.Material as any).TacticalBeamType = 'TacticalBeam';
-    (Cesium.Material as any)._materialCache.addMaterial('TacticalBeam', {
+    // Always attempt to register/update TacticalBeamV3
+    (Cesium.Material as any).TacticalBeamType = 'TacticalBeamV3';
+    (Cesium.Material as any)._materialCache.addMaterial('TacticalBeamV3', {
         fabric: {
-            type: 'TacticalBeam',
+            type: 'TacticalBeamV3',
             uniforms: {
                 color: new Cesium.Color(0.0, 0.95, 1.0, 1.0),
-                speed: 0.8,
+                speed: 0.3, // Significantly slower
                 time: 0
             },
             source: `
@@ -156,25 +158,21 @@ export function registerCustomMaterials() {
                     czm_material material = czm_getDefaultMaterial(materialInput);
                     vec2 st = materialInput.st;
                     
-                    // 1. Softer, slower dashed pattern
-                    float dash = fract(st.s * 12.0 - time * speed * 0.3);
-                    float dashMask = smoothstep(0.4, 0.5, dash) - smoothstep(0.8, 0.9, dash);
+                    // 1. Very subtle directional shimmer (Minimalist)
+                    float shimmer = fract(st.s - time * speed);
+                    float shimmerMask = smoothstep(0.0, 0.5, shimmer) * smoothstep(1.0, 0.5, shimmer);
                     
-                    // 2. Gentle pulse wave
-                    float pulse = fract(st.s - time * (speed * 0.2));
-                    float pulseMask = pow(1.0 - pulse, 3.0);
-                    
-                    // 3. Side-to-side gradient for a soft "cylindrical" beam look
+                    // 2. Strong side-to-side gradient for a clean HUD line look
                     float edgeMask = 1.0 - abs(st.t - 0.5) * 2.0;
-                    edgeMask = pow(edgeMask, 1.5);
+                    edgeMask = pow(edgeMask, 2.0);
                     
-                    // Combine effects
-                    float alpha = (dashMask * 0.3 + pulseMask * 0.4 + 0.1);
+                    // Combine for a nearly solid but directional line
+                    float alpha = (0.6 + shimmerMask * 0.4);
                     alpha *= edgeMask * color.a;
                     
                     material.diffuse = color.rgb;
                     material.alpha = alpha;
-                    material.emission = color.rgb * (pulseMask * 0.8 + 0.2);
+                    material.emission = color.rgb * (0.5 + shimmerMask * 0.5);
                     
                     return material;
                 }

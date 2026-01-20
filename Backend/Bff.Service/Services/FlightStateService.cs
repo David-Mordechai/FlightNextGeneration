@@ -22,7 +22,7 @@ public class FlightStateService
     private Queue<(double Lat, double Lng, double Alt)> Waypoints { get; set; } = new();
     private List<(double Lat, double Lng, double Alt)>? PendingPath { get; set; }
 
-    private double TargetOrbitRadius { get; set; } = 0.01; // ~1km target radius
+    private double TargetOrbitRadius { get; set; } = 0.027; // ~3km target radius
     private double OrbitAngle { get; set; }
 
     // Target Telemetry

@@ -81,31 +81,35 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 });
 
                 // Convert points to Cartesian3 (3D)
-                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, (p.altitudeFt || 0) * FEET_TO_METERS)); 
+                // FIX: Lower the path by 200 meters to ensure it is always visually BELOW the UAV
+                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, ((p.altitudeFt || 0) * FEET_TO_METERS) - 200.0)); 
 
                 optimalPathEntity.value = currentViewer.entities.add({
                     polyline: {
                         positions: positions,
-                        width: 5,
-                        material: new Cesium.PolylineGlowMaterialProperty({
-                            color: Cesium.Color.fromCssColorString('#10B981'),
-                            glowPower: 0.2
-                        }),
-                        clampToGround: false // Show actual altitude
+                        width: 4,
+                        material: new Cesium.ColorMaterialProperty(Cesium.Color.fromCssColorString('#10B981').withAlpha(0.8)),
+                        // ATTACHMENT FIX: Push path into background
+                        // @ts-ignore
+                        eyeOffset: new Cesium.Cartesian3(0, 0, 500.0),
+                        clampToGround: false 
                     }
                 });
 
                 // Add waypoint markers
                 pathData.forEach((p, index) => {
                     const entity = currentViewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, (p.altitudeFt || 0) * FEET_TO_METERS),
+                        // FIX: Lower markers by 200 meters to match the path
+                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, ((p.altitudeFt || 0) * FEET_TO_METERS) - 200.0),
                         point: {
                             pixelSize: 8,
                             color: Cesium.Color.fromCssColorString('#10B981'),
                             outlineColor: Cesium.Color.BLACK,
-                            outlineWidth: 2,
-                            heightReference: Cesium.HeightReference.NONE, // Show actual altitude
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY 
+                            outlineWidth: 0,
+                            // ATTACHMENT FIX: Push path into background
+                            // @ts-ignore
+                            eyeOffset: new Cesium.Cartesian3(0, 0, 500.0),
+                            heightReference: Cesium.HeightReference.NONE
                         }
                     });
                     waypointMarkerEntities.set(`waypoint-${index}`, entity);
@@ -137,7 +141,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             // --- Arrival Detection ---
             if (finalDestination.value) {
                 const distToFinal = Math.sqrt(Math.pow(lat - finalDestination.value.lat, 2) + Math.pow(lng - finalDestination.value.lng, 2));
-                if (distToFinal < 0.012) { 
+                // Match hiding threshold: 0.032 (~3.5km) to clear when entering 3km orbit
+                if (distToFinal < 0.032) { 
                     clearOptimalPath();
                 }
             }
@@ -145,9 +150,6 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             // 1. Projected Path (Digital Pulse Beam)
             if (!projectedPathEntities.has(flightId)) {
                 const entity = currentViewer.entities.add({
-                    show: new Cesium.CallbackProperty(() => {
-                        return !!(currentFlightData.value && flightTargets.get(flightId));
-                    }, false) as any,
                     polyline: {
                         positions: new Cesium.CallbackProperty(() => {
                             const currentData = currentFlightData.value;
@@ -156,36 +158,51 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                             
                             // SYNC FIX: Get live interpolated position from the UAV entity
                             const uav = uavEntities.get(flightId);
-                            const uavPos = uav?.position?.getValue(viewer.value.clock.currentTime);
+                            const uavPos = uav?.position?.getValue(currentViewer.clock.currentTime);
                             if (!uavPos) return [];
 
-                            // Beam Logic: Point to NEXT waypoint in optimal path, OR to the final target
+                            // ATTACHMENT FIX: Offset beam start to the NOSE of the UAV
+                            const carto = Cesium.Cartographic.fromCartesian(uavPos);
+                            const headingRad = Cesium.Math.toRadians(currentData.heading);
+                            const noseDist = 6.0; // 6 meters forward
+                            const noseLat = carto.latitude + (noseDist / 6371000) * Math.cos(headingRad);
+                            const noseLng = carto.longitude + (noseDist / (6371000 * Math.cos(carto.latitude))) * Math.sin(headingRad);
+                            const uavNosePos = Cesium.Cartesian3.fromRadians(noseLng, noseLat, carto.height - 20.0);
+
                             let beamTargetLng = target.lng;
                             let beamTargetLat = target.lat;
                             let beamTargetAlt = 0;
 
                             const path = flightPathCache.get('active');
-                            if (path && path.length > 0) {
-                                // Find the first waypoint in the path that we haven't reached yet
-                                const nextWaypoint = path.find(p => {
+                            if (path && path.length > 1) {
+                                // SEQUENTIAL FIX: Find the first point we haven't 'hit' yet in order
+                                let nextIdx = 1;
+                                for (let i = 1; i < path.length; i++) {
+                                    const p = path[i];
                                     const dist = Math.sqrt(Math.pow(p.lat - currentData.lat, 2) + Math.pow(p.lng - currentData.lng, 2));
-                                    return dist > 0.00015; 
-                                });
+                                    if (dist > 0.0003) { // 33m threshold
+                                        nextIdx = i;
+                                        break;
+                                    }
+                                    nextIdx = i;
+                                }
 
-                                if (nextWaypoint) {
+                                const nextWaypoint = path[nextIdx];
+                                if (nextWaypoint && nextIdx < path.length - 1) {
                                     beamTargetLng = nextWaypoint.lng;
                                     beamTargetLat = nextWaypoint.lat;
-                                    beamTargetAlt = (nextWaypoint.altitudeFt || 0) * FEET_TO_METERS;
+                                    beamTargetAlt = ((nextWaypoint.altitudeFt || 0) * FEET_TO_METERS) - 200.0;
                                 } else {
+                                    beamTargetLng = target.lng;
+                                    beamTargetLat = target.lat;
                                     beamTargetAlt = targetHeightCache.get('final') || 0;
                                 }
-                            }
-                            else {
+                            } else {
                                 beamTargetAlt = targetHeightCache.get(flightId) || 0;
                             }
 
                             return [
-                                uavPos, // Start exactly at the moving 3D model
+                                uavNosePos, 
                                 Cesium.Cartesian3.fromDegrees(beamTargetLng, beamTargetLat, beamTargetAlt)
                             ];
                         }, false),
@@ -195,6 +212,9 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                             color: Cesium.Color.fromCssColorString('#00F2FF'),
                             speed: 2.0
                         }),
+                        // Push beam into background relative to UAV
+                        // @ts-ignore
+                        eyeOffset: new Cesium.Cartesian3(0, 0, 50.0),
                         depthFailMaterial: new Cesium.PolylineGlowMaterialProperty({
                             glowPower: 0.1,
                             color: Cesium.Color.fromCssColorString('#00F2FF').withAlpha(0.2)
@@ -202,6 +222,14 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     }
                 });
                 projectedPathEntities.set(flightId, entity);
+            }
+
+            // FORCE HIDE BEAM if not transiting far away
+            const beamEntity = projectedPathEntities.get(flightId);
+            if (beamEntity) {
+                const distToTarget = Math.sqrt(Math.pow(lat - targetLat, 2) + Math.pow(lng - targetLng, 2));
+                // Only show if distance is > 3.5km (0.032 degrees)
+                beamEntity.show = (distToTarget > 0.032) as any;
             }
 
             // 2. UAV Marker (Procedural 3D Shape)
@@ -237,20 +265,25 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 const entity = currentViewer.entities.add({
                     position: sampledPosition,
                     orientation: orientation,
-                    // Using a high-quality public 3D aircraft model
+                    // Dynamic Scaling: Small when close, Huge on globe
                     model: {
                         uri: '/ORBITER4.gltf',
-                        minimumPixelSize: 120, // Large minimum size to stay visible on the globe
+                        minimumPixelSize: 128, // Floor for globe visibility
                         maximumScale: 10000,
-                        scale: 0.5, // Reasonable base scale for close-up
+                        // Refined: 0.1 scale at 1km (visible), 10.0 scale at 500km (huge)
+                        // @ts-ignore
+                        scaleByDistance: new Cesium.NearFarScalar(1.0e3, 0.1, 5.0e5, 10.0),
                         color: Cesium.Color.WHITE.withAlpha(1.0),
                         colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
                         heightReference: Cesium.HeightReference.NONE
                     },
+                    // ATTACHMENT FIX: Aggressively pull UAV into the foreground layer
+                    // @ts-ignore
+                    eyeOffset: new Cesium.Cartesian3(0, 0, -500.0),
                 });
                 uavEntities.set(flightId, entity);
 
-                // --- SENSOR FOOTPRINT & FRUSTUM (Distance-Aware Fix) ---
+                // --- SENSOR FOOTPRINT & FRUSTUM (Aspect Ratio Fix) ---
                 const calculateFootprintCorners = (data: any): Cesium.Cartesian3[] => {
                     const uav = uavEntities.get(flightId);
                     const uavPos = uav?.position?.getValue(currentViewer.clock.currentTime);
@@ -260,29 +293,29 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     const yawRad = Cesium.Math.toRadians(data.payloadYaw);
                     const pitchRad = Cesium.Math.toRadians(data.payloadPitch);
                     
-                    // 1. Calculate the ground intersection point
-                    // Slant range distance on ground
-                    const groundDist = altMeters / Math.tan(Math.abs(pitchRad));
-                    
-                    // Degrees offset (approximate with earth curvature correction)
-                    const latOffset = (groundDist / 111320) * Math.cos(yawRad);
-                    const lngOffset = (groundDist / (111320 * Math.cos(Cesium.Math.toRadians(data.lat)))) * Math.sin(yawRad);
-                    
-                    const centerLat = data.lat + latOffset;
-                    const centerLng = data.lng + lngOffset;
+                    // Match 16:9 Aspect Ratio
+                    const halfFovY = Cesium.Math.toRadians(7.5); // 15 deg total height
+                    const halfFovX = Cesium.Math.toRadians(12.5); // 25 deg total width
 
-                    // 2. Calculate corners around the intercept point
-                    // Focused Tactical FOV (approx 10 deg total)
-                    const slantRange = altMeters / Math.sin(Math.abs(pitchRad));
-                    const widthMeters = slantRange * Math.tan(Cesium.Math.toRadians(5)); // 5 deg half-angle
-                    const wDeg = widthMeters / 111320;
-
-                    const corners: Cesium.Cartesian3[] = [
-                        Cesium.Cartesian3.fromDegrees(centerLng - wDeg, centerLat - wDeg, 0),
-                        Cesium.Cartesian3.fromDegrees(centerLng + wDeg, centerLat - wDeg, 0),
-                        Cesium.Cartesian3.fromDegrees(centerLng + wDeg, centerLat + wDeg, 0),
-                        Cesium.Cartesian3.fromDegrees(centerLng - wDeg, centerLat + wDeg, 0)
+                    const corners: Cesium.Cartesian3[] = [];
+                    // Calculate the 4 corners of the 16:9 camera frustum intersection
+                    const offsets = [
+                        { p: -halfFovY, y: -halfFovX },
+                        { p: -halfFovY, y: halfFovX },
+                        { p: halfFovY, y: halfFovX },
+                        { p: halfFovY, y: -halfFovX }
                     ];
+
+                    for (const offset of offsets) {
+                        const effectivePitch = pitchRad + offset.p;
+                        const effectiveYaw = yawRad + offset.y;
+                        
+                        const groundDist = altMeters / Math.tan(Math.abs(effectivePitch));
+                        const latOffset = (groundDist / 111320) * Math.cos(effectiveYaw);
+                        const lngOffset = (groundDist / (111320 * Math.cos(Cesium.Math.toRadians(data.lat)))) * Math.sin(effectiveYaw);
+                        
+                        corners.push(Cesium.Cartesian3.fromDegrees(data.lng + lngOffset, data.lat + latOffset, 0.2));
+                    }
 
                     return corners;
                 };
@@ -295,8 +328,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                             if (!data) return undefined;
                             return new Cesium.PolygonHierarchy(calculateFootprintCorners(data));
                         }, false) as any,
-                        material: Cesium.Color.LIME.withAlpha(0.2),
-                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                        material: Cesium.Color.LIME.withAlpha(0.5), // Increased opacity
+                        perPositionHeight: true, 
                         outline: false
                     }
                 });
@@ -305,22 +338,27 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 for (let i = 0; i < 4; i++) {
                     const nextIdx = (i + 1) % 4;
 
-                    // Side Face (Volume)
                     currentViewer.entities.add({
                         polygon: {
                             hierarchy: new Cesium.CallbackProperty(() => {
                                 const data = currentFlightData.value;
                                 const uav = uavEntities.get(flightId);
                                 if (!data || !uav || !viewer.value) return undefined;
-                                const uavPos = uav.position?.getValue(currentViewer.clock.currentTime);
-                                if (!uavPos) return undefined;
+                                
+                                const rawPos = uav.position?.getValue(currentViewer.clock.currentTime);
+                                if (!rawPos) return undefined;
+                                
+                                const carto = Cesium.Cartographic.fromCartesian(rawPos);
+                                // FIX: Offset start position down by 20 meters to match beam attachment level
+                                const uavBottomPos = Cesium.Cartesian3.fromRadians(carto.longitude, carto.latitude, carto.height - 20.0);
+
                                 const corners = calculateFootprintCorners(data);
                                 const c1 = corners[i];
                                 const c2 = corners[nextIdx];
                                 if (c1 === undefined || c2 === undefined) return undefined;
-                                return new Cesium.PolygonHierarchy([uavPos, c1, c2]);
+                                return new Cesium.PolygonHierarchy([uavBottomPos, c1, c2]);
                             }, false) as any,
-                            material: Cesium.Color.LIME.withAlpha(0.08),
+                            material: Cesium.Color.LIME.withAlpha(0.15), // Increased opacity
                             perPositionHeight: true,
                             outline: false
                         }
@@ -335,7 +373,6 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 if (!entity || !currentViewer || currentViewer.isDestroyed()) return undefined;
                 
                 try {
-                    // Use currentTime for perfectly synced interpolation
                     return entity.position?.getValue(currentViewer.clock.currentTime);
                 } catch (e) {
                     return undefined;
