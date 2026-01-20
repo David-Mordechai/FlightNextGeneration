@@ -1,7 +1,7 @@
 import { ref, type ShallowRef } from 'vue';
 import * as Cesium from 'cesium';
 import { signalRService } from '../services/SignalRService';
-import { PolylineFlowMaterialProperty, TacticalBeamMaterialProperty, registerCustomMaterials } from '../utils/CesiumAdvancedMaterials';
+import { TacticalBeamMaterialProperty, registerCustomMaterials } from '../utils/CesiumAdvancedMaterials';
 import { useScreenLabels } from './useScreenLabels';
 
 export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | null>) {
@@ -58,14 +58,15 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
 
             clearOptimalPath();
             
-            if (pathData && pathData.length > 0) {
+            // CRITICAL: Polylines need at least 2 points to render without crashing
+            if (pathData && pathData.length >= 2) {
                 const lastPoint = pathData[pathData.length - 1];
                 finalDestination.value = { lat: lastPoint.lat, lng: lastPoint.lng };
 
                 // Cache height for the final destination to keep the beam stable
                 const carto = Cesium.Cartographic.fromDegrees(lastPoint.lng, lastPoint.lat);
                 Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
-                    if (samples[0].height !== undefined) {
+                    if (samples && samples[0] && samples[0].height !== undefined) {
                         targetHeightCache.set('final', samples[0].height);
                     }
                 });
@@ -77,10 +78,9 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     polyline: {
                         positions: positions,
                         width: 5,
-                        // @ts-ignore
-                        material: new PolylineFlowMaterialProperty({
+                        material: new Cesium.PolylineGlowMaterialProperty({
                             color: Cesium.Color.fromCssColorString('#10B981'),
-                            speed: 2.0
+                            glowPower: 0.2
                         }),
                         clampToGround: true
                     }
@@ -117,7 +117,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 targetHeightCache.set(flightId, 0); // Default
                 const carto = Cesium.Cartographic.fromDegrees(targetLng, targetLat);
                 Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
-                    if (samples[0].height !== undefined) {
+                    if (samples && samples[0] && samples[0].height !== undefined) {
                         targetHeightCache.set(flightId, samples[0].height);
                     }
                 });
@@ -147,11 +147,14 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             // 1. Projected Path (Digital Pulse Beam)
             if (!projectedPathEntities.has(flightId)) {
                 const entity = currentViewer.entities.add({
+                    show: new Cesium.CallbackProperty(() => {
+                        return !!(currentFlightData.value && flightTargets.get(flightId));
+                    }, false) as any,
                     polyline: {
                         positions: new Cesium.CallbackProperty(() => {
                             const currentData = currentFlightData.value;
                             const target = flightTargets.get(flightId);
-                            if (!currentData || !target) return [];
+                            if (!currentData || !target) return []; 
                             
                             const terrainHeight = targetHeightCache.get(flightId) || 0;
 
@@ -241,8 +244,15 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             // Register HTML Label for UAV
             registerLabel(flightId, `UAV-${flightId}`, 'uav', () => {
                 const entity = uavEntities.get(flightId);
-                if (!entity || !viewer.value) return undefined;
-                return entity.position?.getValue(viewer.value.clock.currentTime);
+                const currentViewer = viewer.value;
+                if (!entity || !currentViewer || currentViewer.isDestroyed()) return undefined;
+                
+                try {
+                    // Use currentTime for perfectly synced interpolation
+                    return entity.position?.getValue(currentViewer.clock.currentTime);
+                } catch (e) {
+                    return undefined;
+                }
             }, { yOffset: 60 });
         });
     };

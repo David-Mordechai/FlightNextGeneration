@@ -92,6 +92,9 @@ onMounted(async () => {
     // CRITICAL: Enable depth test for accurate picking against terrain
     viewerInstance.scene.globe.depthTestAgainstTerrain = true;
 
+    // Suppress default Cesium error popup (rethrow instead)
+    viewerInstance.scene.rethrowRenderErrors = true;
+
     viewer.value = viewerInstance;
 
     await loadNoFlyZones();

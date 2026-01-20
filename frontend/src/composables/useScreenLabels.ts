@@ -43,21 +43,25 @@ export function useScreenLabels() {
         const newLabels: ScreenLabel[] = [];
         
         trackedEntities.forEach((data, id) => {
-            const pos = data.positionCallback();
-            if (pos) {
-                // Fast screen check: avoid projecting if clearly behind camera
-                const screenPos = Cesium.SceneTransforms.worldToWindowCoordinates(scene, pos);
-                if (screenPos) {
-                    newLabels.push({
-                        id,
-                        name: data.name,
-                        x: screenPos.x,
-                        y: screenPos.y - (data.yOffset || 0),
-                        visible: true,
-                        type: data.type,
-                        noBackground: data.noBackground
-                    });
+            try {
+                const pos = data.positionCallback();
+                if (pos) {
+                    // Fast screen check: avoid projecting if clearly behind camera
+                    const screenPos = Cesium.SceneTransforms.worldToWindowCoordinates(scene, pos);
+                    if (screenPos) {
+                        newLabels.push({
+                            id,
+                            name: data.name,
+                            x: screenPos.x,
+                            y: screenPos.y - (data.yOffset || 0),
+                            visible: true,
+                            type: data.type,
+                            noBackground: data.noBackground
+                        });
+                    }
                 }
+            } catch (e) {
+                // Silently ignore transient rendering errors during HMR
             }
         });
         screenLabels.value = newLabels;
