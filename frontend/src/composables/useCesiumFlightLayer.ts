@@ -19,6 +19,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
     
     const hasCentered = ref(false);
     const finalDestination = ref<{lat: number, lng: number} | null>(null);
+    const flightPathCache = new Map<string, any[]>(); // Store current optimal path for the beam to follow
     
     const currentFlightData = ref<{
         flightId: string;
@@ -44,6 +45,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         waypointMarkerEntities.clear();
         
         finalDestination.value = null;
+        flightPathCache.clear();
     };
 
     const targetHeightCache = new Map<string, number>();
@@ -60,6 +62,11 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             
             // CRITICAL: Polylines need at least 2 points to render without crashing
             if (pathData && pathData.length >= 2) {
+                // Cache the path for the beam logic
+                // Using a generic key or specific flightId if available. 
+                // Since SignalR RouteCalculated might not have flightId yet, we'll store it as 'global' or use first data received.
+                flightPathCache.set('active', pathData);
+
                 const lastPoint = pathData[pathData.length - 1];
                 finalDestination.value = { lat: lastPoint.lat, lng: lastPoint.lng };
 
@@ -71,8 +78,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     }
                 });
 
-                // Convert points to Cartesian3
-                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0)); 
+                // Convert points to Cartesian3 (3D)
+                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, (p.altitudeFt || 0) * FEET_TO_METERS)); 
 
                 optimalPathEntity.value = currentViewer.entities.add({
                     polyline: {
@@ -82,20 +89,20 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                             color: Cesium.Color.fromCssColorString('#10B981'),
                             glowPower: 0.2
                         }),
-                        clampToGround: true
+                        clampToGround: false // Show actual altitude
                     }
                 });
 
                 // Add waypoint markers
                 pathData.forEach((p, index) => {
                     const entity = currentViewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0),
+                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, (p.altitudeFt || 0) * FEET_TO_METERS),
                         point: {
                             pixelSize: 8,
                             color: Cesium.Color.fromCssColorString('#10B981'),
                             outlineColor: Cesium.Color.BLACK,
                             outlineWidth: 2,
-                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            heightReference: Cesium.HeightReference.NONE, // Show actual altitude
                             disableDepthTestDistance: Number.POSITIVE_INFINITY 
                         }
                     });
@@ -112,38 +119,6 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             currentFlightData.value = { flightId, lat, lng, altitude, speed, heading };
             flightTargets.set(flightId, { lat: targetLat, lng: targetLng });
 
-            // Ensure we have a cached height for this specific flight's target
-            if (!targetHeightCache.has(flightId)) {
-                targetHeightCache.set(flightId, 0); // Default
-                const carto = Cesium.Cartographic.fromDegrees(targetLng, targetLat);
-                Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
-                    if (samples && samples[0] && samples[0].height !== undefined) {
-                        targetHeightCache.set(flightId, samples[0].height);
-                    }
-                });
-            }
-
-            // One-time centering (Top-Down)
-            if (!hasCentered.value) {
-                currentViewer.camera.flyTo({
-                    destination: Cesium.Cartesian3.fromDegrees(lng, lat, (altitude * FEET_TO_METERS) + 3000),
-                    orientation: {
-                        heading: Cesium.Math.toRadians(0),
-                        pitch: Cesium.Math.toRadians(-90),
-                        roll: 0.0
-                    }
-                });
-                hasCentered.value = true;
-            }
-
-            // --- Arrival Detection ---
-            if (finalDestination.value) {
-                const distToFinal = Math.sqrt(Math.pow(lat - finalDestination.value.lat, 2) + Math.pow(lng - finalDestination.value.lng, 2));
-                if (distToFinal < 0.012) { 
-                    clearOptimalPath();
-                }
-            }
-
             // 1. Projected Path (Digital Pulse Beam)
             if (!projectedPathEntities.has(flightId)) {
                 const entity = currentViewer.entities.add({
@@ -154,13 +129,40 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                         positions: new Cesium.CallbackProperty(() => {
                             const currentData = currentFlightData.value;
                             const target = flightTargets.get(flightId);
-                            if (!currentData || !target) return []; 
+                            if (!currentData || !target || !viewer.value) return []; 
                             
-                            const terrainHeight = targetHeightCache.get(flightId) || 0;
+                            // SYNC FIX: Get live interpolated position from the UAV entity
+                            const uav = uavEntities.get(flightId);
+                            const uavPos = uav?.position?.getValue(viewer.value.clock.currentTime);
+                            if (!uavPos) return [];
+
+                            // Beam Logic: Point to NEXT waypoint in optimal path, OR to the final target
+                            let beamTargetLng = target.lng;
+                            let beamTargetLat = target.lat;
+                            let beamTargetAlt = 0;
+
+                            const path = flightPathCache.get('active');
+                            if (path && path.length > 0) {
+                                // Find the first waypoint in the path that we haven't reached yet
+                                const nextWaypoint = path.find(p => {
+                                    const dist = Math.sqrt(Math.pow(p.lat - currentData.lat, 2) + Math.pow(p.lng - currentData.lng, 2));
+                                    return dist > 0.00015; 
+                                });
+
+                                if (nextWaypoint) {
+                                    beamTargetLng = nextWaypoint.lng;
+                                    beamTargetLat = nextWaypoint.lat;
+                                    beamTargetAlt = (nextWaypoint.altitudeFt || 0) * FEET_TO_METERS;
+                                } else {
+                                    beamTargetAlt = targetHeightCache.get('final') || 0;
+                                }
+                            } else {
+                                beamTargetAlt = targetHeightCache.get(flightId) || 0;
+                            }
 
                             return [
-                                Cesium.Cartesian3.fromDegrees(currentData.lng, currentData.lat, currentData.altitude * FEET_TO_METERS),
-                                Cesium.Cartesian3.fromDegrees(target.lng, target.lat, terrainHeight)
+                                uavPos, // Start exactly at the moving 3D model
+                                Cesium.Cartesian3.fromDegrees(beamTargetLng, beamTargetLat, beamTargetAlt)
                             ];
                         }, false),
                         width: 8,
@@ -242,7 +244,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             }
 
             // Register HTML Label for UAV
-            registerLabel(flightId, `UAV-${flightId}`, 'uav', () => {
+            registerLabel(flightId, 'UAV 100', 'uav', () => {
                 const entity = uavEntities.get(flightId);
                 const currentViewer = viewer.value;
                 if (!entity || !currentViewer || currentViewer.isDestroyed()) return undefined;

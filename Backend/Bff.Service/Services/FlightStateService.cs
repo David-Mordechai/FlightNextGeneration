@@ -18,9 +18,9 @@ public class FlightStateService
 
     private FlightMode Mode { get; set; } = FlightMode.Orbiting;
     
-    // Navigation Queues
-    private Queue<(double Lat, double Lng)> Waypoints { get; set; } = new();
-    private List<(double Lat, double Lng)>? PendingPath { get; set; }
+    // Navigation Queues (3D)
+    private Queue<(double Lat, double Lng, double Alt)> Waypoints { get; set; } = new();
+    private List<(double Lat, double Lng, double Alt)>? PendingPath { get; set; }
 
     private double TargetOrbitRadius { get; set; } = 0.01; // ~1km target radius
     private double OrbitAngle { get; set; }
@@ -96,6 +96,7 @@ public class FlightStateService
                 var next = Waypoints.Dequeue();
                 TargetLat = next.Lat;
                 TargetLng = next.Lng;
+                TargetAltitudeFt = next.Alt; // Update altitude for this leg
             }
             // Note: The 'else' block for final destination is handled by Orbit Capture above.
         }
@@ -135,10 +136,11 @@ public class FlightStateService
         Waypoints.Clear();
         TargetLat = lat;
         TargetLng = lng;
+        // Keep current TargetAltitudeFt
         Mode = FlightMode.Transiting;
     }
 
-    public void SetPendingPath(List<(double Lat, double Lng)> path)
+    public void SetPendingPath(List<(double Lat, double Lng, double Alt)> path)
     {
         PendingPath = path;
     }
@@ -159,6 +161,7 @@ public class FlightStateService
             var first = Waypoints.Dequeue();
             TargetLat = first.Lat;
             TargetLng = first.Lng;
+            TargetAltitudeFt = first.Alt;
             Mode = FlightMode.Transiting;
         }
 

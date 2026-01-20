@@ -698,8 +698,18 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
         showNewZoneModal, newZoneForm, showPointModal, newPointForm, isEditing,
         loadNoFlyZones, loadPoints, startDrawing, handleSavePoint, handleSaveZone, handleCancelPoint, handleCancelZone, deleteEntity, initializeRealtimeUpdates,
         toggleEditMode,
-        saveEdits: () => { isEditing.value = false; disableEditInteraction(); },
-        cancelEdits: () => { isEditing.value = false; disableEditInteraction(); },
+        saveEdits: () => { 
+            isEditing.value = false; 
+            selectedEntityId.value = null;
+            clearVertexHandles();
+            disableEditInteraction(); 
+        },
+        cancelEdits: () => { 
+            isEditing.value = false; 
+            selectedEntityId.value = null;
+            clearVertexHandles();
+            disableEditInteraction(); 
+        },
         handleDeleteZone: async () => {
             if (newZoneForm.value.id) { await deleteEntity(newZoneForm.value.id, false); showNewZoneModal.value = false; }
         }

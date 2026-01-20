@@ -6,6 +6,7 @@ public class RouteRequest
     public double StartLng { get; set; }
     public double EndLat { get; set; }
     public double EndLng { get; set; }
+    public double AltitudeFt { get; set; }
 }
 
 public class RouteResponse
@@ -18,4 +19,5 @@ public class GeoPoint
 {
     public double Lat { get; set; }
     public double Lng { get; set; }
+    public double AltitudeFt { get; set; }
 }

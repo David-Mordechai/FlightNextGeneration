@@ -7,8 +7,31 @@ class SignalRService {
   constructor() {
     this.connection = new signalR.HubConnectionBuilder()
       .withUrl(this.hubUrl)
-      .withAutomaticReconnect() // Built-in retry policy for transient failures
+      .withAutomaticReconnect({
+        nextRetryDelayInMilliseconds: retryContext => {
+          if (retryContext.elapsedMilliseconds < 60000) {
+            // If we've been reconnecting for less than 60 seconds, retry every 2s
+            return 2000;
+          } else {
+            // Otherwise, retry every 10s
+            return 10000;
+          }
+        }
+      })
       .build();
+
+    this.connection.onclose(async () => {
+      console.warn("SignalR Connection Closed. Re-starting...");
+      await this.startConnection();
+    });
+
+    this.connection.onreconnecting((error) => {
+      console.warn(`SignalR Reconnecting: ${error}`);
+    });
+
+    this.connection.onreconnected((connectionId) => {
+      console.log(`SignalR Reconnected. ID: ${connectionId}`);
+    });
   }
 
   public async startConnection(): Promise<void> {

@@ -69,8 +69,8 @@ public class MissionController(FlightStateService flightState, IHubContext<Fligh
     [HttpPost("path/preview")]
     public async Task<IActionResult> PreviewPath([FromBody] List<GeoPoint> path)
     {
-        // Save to Pending
-        flightState.SetPendingPath(path.Select(p => (p.Lat, p.Lng)).ToList());
+        // Save to Pending (3D)
+        flightState.SetPendingPath(path.Select(p => (p.Lat, p.Lng, p.AltitudeFt)).ToList());
         
         // Broadcast for Viz
         await hubContext.Clients.All.SendAsync("RouteCalculated", path);
@@ -92,4 +92,5 @@ public class GeoPoint
 {
     public double Lat { get; set; }
     public double Lng { get; set; }
+    public double AltitudeFt { get; set; }
 }

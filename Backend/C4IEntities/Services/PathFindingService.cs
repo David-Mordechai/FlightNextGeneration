@@ -12,9 +12,10 @@ public class PathFindingService(C4IDbContext context)
 
     public async Task<RouteResponse> CalculateOptimalPath(RouteRequest request)
     {
-        // 1. Fetch Active Zones
+        // 1. Fetch Active Zones that intersect with the requested altitude
         var zones = await context.NoFlyZones
             .Where(z => z.IsActive)
+            .Where(z => request.AltitudeFt >= z.MinAltitude && request.AltitudeFt <= z.MaxAltitude)
             .ToListAsync();
 
         var startPoint = _geometryFactory.CreatePoint(new Coordinate(request.StartLng, request.StartLat));
@@ -22,8 +23,6 @@ public class PathFindingService(C4IDbContext context)
 
         // 2. Build Nodes (Start, End, + Zone Vertices)
         // Buffer zones to create a safety margin. 
-        // Increased buffer to 0.0005 (~55m) to prevent UAV from flying too close to the edge.
-        // quadrantSegments: 2 reduces vertex count (chamfered corners) vs default 8, improving performance.
         var obstacles = zones
             .Select(z => z.Geometry.Buffer(0.0005, 2) as Polygon)
             .Where(p => p != null)
@@ -38,8 +37,8 @@ public class PathFindingService(C4IDbContext context)
             {
                 Path =
                 [
-                    new GeoPoint { Lat = request.StartLat, Lng = request.StartLng },
-                    new GeoPoint { Lat = request.EndLat, Lng = request.EndLng }
+                    new GeoPoint { Lat = request.StartLat, Lng = request.StartLng, AltitudeFt = request.AltitudeFt },
+                    new GeoPoint { Lat = request.EndLat, Lng = request.EndLng, AltitudeFt = request.AltitudeFt }
                 ],
                 TotalDistanceMeters = HaversineDistance(startPoint.Coordinate, endPoint.Coordinate)
             };
@@ -64,15 +63,12 @@ public class PathFindingService(C4IDbContext context)
         }
 
         // Connect visible nodes
-        // O(N^2) complexity. For very large N, a spatial index or specialized visibility algorithm is needed.
         for (int i = 0; i < nodes.Count; i++)
         {
             for (int j = i + 1; j < nodes.Count; j++)
             {
                 var u = nodes[i];
                 var v = nodes[j];
-                
-                // Optimization: Don't check if nodes are too far apart? (optional)
                 
                 var segment = _geometryFactory.CreateLineString(new[] { u, v });
                 
@@ -90,7 +86,6 @@ public class PathFindingService(C4IDbContext context)
         
         if (pathCoords.Count == 0)
         {
-             // Fallback or empty if no path found
              return new RouteResponse
              {
                  Path = new List<GeoPoint>(),
@@ -100,7 +95,7 @@ public class PathFindingService(C4IDbContext context)
 
         return new RouteResponse
         {
-            Path = pathCoords.Select(c => new GeoPoint { Lat = c.Y, Lng = c.X }).ToList(),
+            Path = pathCoords.Select(c => new GeoPoint { Lat = c.Y, Lng = c.X, AltitudeFt = request.AltitudeFt }).ToList(),
             TotalDistanceMeters = CalculateTotalDistance(pathCoords)
         };
     }

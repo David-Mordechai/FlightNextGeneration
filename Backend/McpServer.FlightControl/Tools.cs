@@ -47,6 +47,7 @@ public class Tools
             using var doc = JsonDocument.Parse(stateJson);
             var currentLat = doc.RootElement.GetProperty("lat").GetDouble();
             var currentLng = doc.RootElement.GetProperty("lng").GetDouble();
+            var currentAlt = doc.RootElement.GetProperty("altitude").GetDouble();
 
             // 3. Calculate Path (Call C4I Service)
             var c4IUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
@@ -57,7 +58,8 @@ public class Tools
                 StartLat = currentLat,
                 StartLng = currentLng,
                 EndLat = targetCoords.Value.Lat,
-                EndLng = targetCoords.Value.Lng
+                EndLng = targetCoords.Value.Lng,
+                AltitudeFt = currentAlt
             };
             
             var routeRes = await c4IClient.PostAsync("api/route/calculate", 
