@@ -25,19 +25,9 @@ public class FlightSimulationWorker(
             var heading = state.GetHeading();
 
             // 3. Broadcast State
-            const string flightId = "UAV-Ashdod-01";
             await hubContext.Clients.All.SendAsync(
                 "ReceiveFlightData", 
-                flightId, 
-                state.CurrentLat, 
-                state.CurrentLng, 
-                heading, 
-                displayAlt, 
-                displaySpeed, 
-                state.TargetLat, 
-                state.TargetLng,
-                state.PayloadPitch,
-                state.PayloadYaw,
+                state.CurrentState,
                 cancellationToken: stoppingToken
             );
 

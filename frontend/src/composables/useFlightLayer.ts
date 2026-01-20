@@ -86,8 +86,16 @@ export function useFlightVisualization(map: any) {
             });
         });
 
-        signalRService.onReceiveFlightData((flightId: string, lat: number, lng: number, heading: number, altitude: number, speed: number, targetLat: number, targetLng: number) => {
+        signalRService.onReceiveFlightData((data: any) => {
             if (!currentMap) return;
+
+            const lat = data.lat || data.Lat;
+            const lng = data.lng || data.Lng;
+            const heading = data.heading || data.Heading;
+            const flightId = data.flightId || data.FlightId || "UAV-100";
+            const altitude = data.altitude || data.Altitude;
+            const targetLat = data.targetLat || data.TargetLat;
+            const targetLng = data.targetLng || data.TargetLng;
 
             // One-time centering
             if (!hasCentered.value) {
@@ -95,7 +103,7 @@ export function useFlightVisualization(map: any) {
                 hasCentered.value = true;
             }
 
-            currentFlightData.value = { flightId, lat, lng, altitude, speed, heading };
+            currentFlightData.value = { flightId, lat, lng, altitude, speed: data.speed || data.Speed, heading };
             const scale = Math.max(0.3, Math.min(1.8, 3000 / altitude));
 
             // --- Arrival Detection ---

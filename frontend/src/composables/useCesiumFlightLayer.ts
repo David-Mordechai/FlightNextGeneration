@@ -17,7 +17,6 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
     const optimalPathEntity = ref<Cesium.Entity | null>(null);
     const waypointMarkerEntities = new Map<string, Cesium.Entity>();
     
-    const hasCentered = ref(false);
     const finalDestination = ref<{lat: number, lng: number} | null>(null);
     const flightPathCache = new Map<string, any[]>(); // Store current optimal path for the beam to follow
     
@@ -30,6 +29,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         heading: number;
         payloadPitch: number;
         payloadYaw: number;
+        flightMode: string;
     } | null>(null);
 
     const FEET_TO_METERS = 0.3048;
@@ -117,32 +117,34 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             }
         });
 
-        signalRService.onReceiveFlightData((flightId, lat, lng, heading, altitude, speed, targetLat, targetLng, payloadPitch, payloadYaw) => {
-            if (!currentViewer) return;
+        signalRService.onReceiveFlightData((data: any) => {
+            if (!currentViewer || !data) return;
+
+            // Extract from DTO (Backend uses PascalCase for the object properties)
+            const flightId = "UAV-100";
+            const lat = data.lat || data.Lat;
+            const lng = data.lng || data.Lng;
+            const heading = data.heading || data.Heading;
+            const altitude = data.altitude || data.Altitude;
+            const speed = data.speed || data.Speed;
+            const targetLat = data.targetLat || data.TargetLat;
+            const targetLng = data.targetLng || data.TargetLng;
+            const payloadPitch = data.payloadPitch || data.PayloadPitch;
+            const payloadYaw = data.payloadYaw || data.PayloadYaw;
+            const flightMode = data.mode || data.Mode;
 
             const position = Cesium.Cartesian3.fromDegrees(lng, lat, altitude * FEET_TO_METERS);
             
-            currentFlightData.value = { flightId, lat, lng, altitude, speed, heading, payloadPitch, payloadYaw };
+            currentFlightData.value = { 
+                flightId, lat, lng, altitude, speed, heading, 
+                payloadPitch, payloadYaw, flightMode 
+            };
             flightTargets.set(flightId, { lat: targetLat, lng: targetLng });
 
-            // One-time centering (Top-Down)
-            if (!hasCentered.value) {
-                currentViewer.camera.flyTo({
-                    destination: Cesium.Cartesian3.fromDegrees(lng, lat, (altitude * FEET_TO_METERS) + 3000),
-                    orientation: {
-                        heading: Cesium.Math.toRadians(0),
-                        pitch: Cesium.Math.toRadians(-90),
-                        roll: 0.0
-                    }
-                });
-                hasCentered.value = true;
-            }
-
-            // --- Arrival Detection ---
-            if (finalDestination.value) {
-                const distToFinal = Math.sqrt(Math.pow(lat - finalDestination.value.lat, 2) + Math.pow(lng - finalDestination.value.lng, 2));
-                // Match hiding threshold: 0.032 (~3.5km) to clear when entering 3km orbit
-                if (distToFinal < 0.032) { 
+            // --- STATE-DRIVEN CLEANUP ---
+            if (flightMode === 'Orbiting') {
+                const distToTarget = Math.sqrt(Math.pow(lat - targetLat, 2) + Math.pow(lng - targetLng, 2));
+                if (distToTarget < 0.032 && flightPathCache.has('active')) {
                     clearOptimalPath();
                 }
             }
@@ -224,12 +226,13 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 projectedPathEntities.set(flightId, entity);
             }
 
-            // FORCE HIDE BEAM if not transiting far away
+            // DEFINITIVE VISIBILITY: Only show beam if transiting AND no safe path is active
             const beamEntity = projectedPathEntities.get(flightId);
             if (beamEntity) {
-                const distToTarget = Math.sqrt(Math.pow(lat - targetLat, 2) + Math.pow(lng - targetLng, 2));
-                // Only show if distance is > 3.5km (0.032 degrees)
-                beamEntity.show = (distToTarget > 0.032) as any;
+                // Show cyan beam ONLY if:
+                // 1. We are Transiting
+                // 2. We are NOT currently following a calculated safe path (green line)
+                beamEntity.show = (flightMode === 'Transiting' && !optimalPathEntity.value) as any;
             }
 
             // 2. UAV Marker (Procedural 3D Shape)

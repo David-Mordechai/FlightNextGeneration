@@ -48,7 +48,8 @@ public class FlightStateService
         TargetLat,
         TargetLng,
         PayloadPitch,
-        PayloadYaw
+        PayloadYaw,
+        Mode = Mode.ToString() // Send Mode as string ('Transiting' or 'Orbiting')
     };
 
     // Physics Constants
