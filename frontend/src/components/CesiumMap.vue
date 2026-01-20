@@ -5,15 +5,20 @@ import "cesium/Build/Cesium/Widgets/widgets.css";
 
 import { useCesiumFlightVisualization } from '../composables/useCesiumFlightLayer';
 import { useCesiumC4ILayer } from '../composables/useCesiumC4ILayer';
+import { useScreenLabels } from '../composables/useScreenLabels'; // Import shared labels
 
 import MainLayout from './MainLayout.vue';
 import FlightDataOverlay from './FlightDataOverlay.vue';
 import MissionChat from './MissionChat.vue';
 import NoFlyZoneModal from './NoFlyZoneModal.vue';
 import PointModal from './PointModal.vue';
+import EntityLabels from './EntityLabels.vue';
 
 const mapContainer = ref<HTMLElement | null>(null);
 const viewer = shallowRef<Cesium.Viewer | null>(null);
+
+// Shared Labels
+const { screenLabels, initializeLabelSystem, destroyLabelSystem } = useScreenLabels();
 
 // Composables
 const { 
@@ -60,23 +65,32 @@ onMounted(async () => {
       timeline: false,
       navigationHelpButton: false,
       scene3DOnly: true,
+      useBrowserRecommendedResolution: true,
+      requestRenderMode: true, // Only render when scene changes
+      maximumRenderTimeChange: 0.033, // Match 30fps max
     });
 
-    // Add high-res satellite imagery
+    // Disable heavy effects
+    viewerInstance.scene.postProcessStages.fxaa.enabled = false;
+    viewerInstance.scene.fog.enabled = false; // Fog is expensive
+    viewerInstance.scene.globe.showGroundAtmosphere = false; // Reduce shader complexity
     const esri = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
         'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
     );
     viewerInstance.imageryLayers.addImageryProvider(esri);
 
-    // Set starting view to Ashdod
+    // Set starting view to Ashdod (10,000 ft, Top-Down)
     viewerInstance.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(34.65, 31.80, 15000),
+        destination: Cesium.Cartesian3.fromDegrees(34.65, 31.80, 3048),
         orientation: {
             heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-45),
+            pitch: Cesium.Math.toRadians(-90),
             roll: 0.0
         }
     });
+
+    // CRITICAL: Enable depth test for accurate picking against terrain
+    viewerInstance.scene.globe.depthTestAgainstTerrain = true;
 
     viewer.value = viewerInstance;
 
@@ -84,10 +98,16 @@ onMounted(async () => {
     await loadPoints();
     initializeFlightListeners();
     initializeRealtimeUpdates();
+    
+    // Initialize HTML Label System
+    initializeLabelSystem(viewerInstance);
   }
 });
 
 onUnmounted(async () => {
+  if (viewer.value) {
+    destroyLabelSystem(viewer.value);
+  }
   await stopFlightListeners();
   if (viewer.value) {
     viewer.value.destroy();
@@ -110,6 +130,7 @@ onUnmounted(async () => {
   >
     <template #map>
       <div ref="mapContainer" class="h-full w-full cesium-container"></div>
+      <EntityLabels :labels="screenLabels" />
     </template>
 
     <template #telemetry>

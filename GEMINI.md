@@ -6,13 +6,15 @@ Next-generation flight control and visualization system with C4I entity manageme
 ## Features Implemented
 - **Visual Overhaul (Operation "Satellite Command")**
   - **Map:** Switched to **Esri World Imagery** for high-resolution realistic satellite view.
-  - **Markers:** Replaced static icons with **Animated HTML/CSS Markers**:
-    - **Home:** Blue "Pulse Radar" ring with centered base icon.
-    - **Target:** Red "Crosshair" with rotating brackets and glowing center.
+  - **Markers (Cesium 3D Upgrade):** 
+    - **Home:** Cyan **"Scanner Base"** featuring a semi-transparent cylinder with a rotating holographic ring.
+    - **Target:** Red **"Pulsating Beacon"** with dynamic height animation and dashed tactical rings.
   - **Flight Path:**
-    - **Safe Corridor (Green):** Thinner, neon-green path with a **"Digital Flow" animation** (marching dashes) to indicate direction.
-    - **Projected Path:** Refined to a sharp, pulsing blue neon line.
-    - **Logic:** Fixed visual detachment bugs by syncing updates with zoom events.
+    - **Optimal Path:** Implemented **"Digital Flow" Material**, a custom shader effect with flowing green data gradients.
+    - **Projected Path:** Tactical Dashed Line (Blue) for intent visualization.
+    - **UAV Trail:** Added a cyan glowing ribbon trail that follows the aircraft.
+  - **No-Fly Zones:**
+    - **Style:** **"Force Field"** effect using grid materials with a glowing neon rim at max altitude.
   - **Labels:**
     - **Style:** "Glassmorphism" Tactical Tags (Semi-transparent dark slate, blur effect, cyan accent).
     - **Behavior:** Dynamic scaling (shrink on zoom out) and Z-ordering (always below UAV/Icons) to prevent clutter.

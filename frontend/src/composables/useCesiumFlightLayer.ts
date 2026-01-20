@@ -1,10 +1,19 @@
 import { ref, type ShallowRef } from 'vue';
 import * as Cesium from 'cesium';
 import { signalRService } from '../services/SignalRService';
+import { PolylineFlowMaterialProperty, registerCustomMaterials } from '../utils/CesiumAdvancedMaterials';
+import { useScreenLabels } from './useScreenLabels';
 
 export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | null>) {
+    // Ensure custom materials are registered
+    registerCustomMaterials();
+    
+    // Use Shared Label System
+    const { registerLabel } = useScreenLabels();
+
     const uavEntities = new Map<string, Cesium.Entity>();
     const projectedPathEntities = new Map<string, Cesium.Entity>();
+    const flightTargets = new Map<string, { lat: number, lng: number }>(); 
     const optimalPathEntity = ref<Cesium.Entity | null>(null);
     const waypointMarkerEntities = new Map<string, Cesium.Entity>();
     
@@ -37,6 +46,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         finalDestination.value = null;
     };
 
+    const targetHeightCache = new Map<string, number>();
+
     const initializeFlightListeners = () => {
         const currentViewer = viewer.value;
         if (!currentViewer) return;
@@ -51,31 +62,41 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 const lastPoint = pathData[pathData.length - 1];
                 finalDestination.value = { lat: lastPoint.lat, lng: lastPoint.lng };
 
+                // Cache height for the final destination to keep the beam stable
+                const carto = Cesium.Cartographic.fromDegrees(lastPoint.lng, lastPoint.lat);
+                Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
+                    if (samples[0].height !== undefined) {
+                        targetHeightCache.set('final', samples[0].height);
+                    }
+                });
+
                 // Convert points to Cartesian3
-                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 100 * FEET_TO_METERS)); // Default altitude for path
+                const positions = pathData.map(p => Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0)); 
 
                 optimalPathEntity.value = currentViewer.entities.add({
                     polyline: {
                         positions: positions,
-                        width: 3,
-                        material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.2,
-                            color: Cesium.Color.fromCssColorString('#10B981')
+                        width: 5,
+                        // @ts-ignore
+                        material: new PolylineFlowMaterialProperty({
+                            color: Cesium.Color.fromCssColorString('#10B981'),
+                            speed: 2.0
                         }),
-                        clampToGround: false
+                        clampToGround: true
                     }
                 });
 
                 // Add waypoint markers
                 pathData.forEach((p, index) => {
                     const entity = currentViewer.entities.add({
-                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 100 * FEET_TO_METERS),
+                        position: Cesium.Cartesian3.fromDegrees(p.lng, p.lat, 0),
                         point: {
                             pixelSize: 8,
                             color: Cesium.Color.fromCssColorString('#10B981'),
                             outlineColor: Cesium.Color.BLACK,
                             outlineWidth: 2,
-                            disableDepthTestDistance: Number.POSITIVE_INFINITY // Always visible
+                            heightReference: Cesium.HeightReference.CLAMP_TO_GROUND,
+                            disableDepthTestDistance: Number.POSITIVE_INFINITY 
                         }
                     });
                     waypointMarkerEntities.set(`waypoint-${index}`, entity);
@@ -89,14 +110,26 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             const position = Cesium.Cartesian3.fromDegrees(lng, lat, altitude * FEET_TO_METERS);
             
             currentFlightData.value = { flightId, lat, lng, altitude, speed, heading };
+            flightTargets.set(flightId, { lat: targetLat, lng: targetLng });
 
-            // One-time centering
+            // Ensure we have a cached height for this specific flight's target
+            if (!targetHeightCache.has(flightId)) {
+                targetHeightCache.set(flightId, 0); // Default
+                const carto = Cesium.Cartographic.fromDegrees(targetLng, targetLat);
+                Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
+                    if (samples[0].height !== undefined) {
+                        targetHeightCache.set(flightId, samples[0].height);
+                    }
+                });
+            }
+
+            // One-time centering (Top-Down)
             if (!hasCentered.value) {
                 currentViewer.camera.flyTo({
-                    destination: Cesium.Cartesian3.fromDegrees(lng, lat, (altitude * FEET_TO_METERS) + 2000),
+                    destination: Cesium.Cartesian3.fromDegrees(lng, lat, (altitude * FEET_TO_METERS) + 3000),
                     orientation: {
                         heading: Cesium.Math.toRadians(0),
-                        pitch: Cesium.Math.toRadians(-45),
+                        pitch: Cesium.Math.toRadians(-90),
                         roll: 0.0
                     }
                 });
@@ -111,22 +144,32 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 }
             }
 
-            // 1. Projected Path (Blue Laser)
+            // 1. Projected Path (Orange Laser Beam)
             if (!projectedPathEntities.has(flightId)) {
                 const entity = currentViewer.entities.add({
                     polyline: {
                         positions: new Cesium.CallbackProperty(() => {
                             const currentData = currentFlightData.value;
-                            if (!currentData) return [];
+                            const target = flightTargets.get(flightId);
+                            if (!currentData || !target) return [];
+                            
+                            const terrainHeight = targetHeightCache.get(flightId) || 0;
+
                             return [
                                 Cesium.Cartesian3.fromDegrees(currentData.lng, currentData.lat, currentData.altitude * FEET_TO_METERS),
-                                Cesium.Cartesian3.fromDegrees(targetLng, targetLat, currentData.altitude * FEET_TO_METERS)
+                                Cesium.Cartesian3.fromDegrees(target.lng, target.lat, terrainHeight)
                             ];
                         }, false),
-                        width: 6, 
+                        width: 10,
                         material: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.5,
-                            color: Cesium.Color.fromCssColorString('#60A5FA')
+                            glowPower: 0.3,
+                            taperPower: 0.5,
+                            color: Cesium.Color.fromCssColorString('#FF5500')
+                        }),
+                        depthFailMaterial: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.3,
+                            taperPower: 0.5,
+                            color: Cesium.Color.fromCssColorString('#FF5500').withAlpha(0.5)
                         })
                     }
                 });
@@ -139,14 +182,11 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             const rollRadians = 0;
             const hpr = new Cesium.HeadingPitchRoll(headingRadians, pitchRadians, rollRadians);
             
-            // For SampledPosition, we should use a Callback for orientation too if we want it to stay perfectly synced
-            // but setting it once per SignalR update is usually enough.
             const orientation = Cesium.Transforms.headingPitchRollQuaternion(position, hpr);
 
             if (uavEntities.has(flightId)) {
                 const entity = uavEntities.get(flightId);
                 if (entity) {
-                    // Add sample 1 second into the future to allow Cesium to interpolate smoothly
                     const futureTime = Cesium.JulianDate.now();
                     entity.orientation = orientation as any;
                     
@@ -176,29 +216,37 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     // Using a high-quality public 3D aircraft model
                     model: {
                         uri: 'https://raw.githubusercontent.com/CesiumGS/cesium/main/Apps/SampleData/models/CesiumAir/Cesium_Air.glb',
-                        minimumPixelSize: 64, // Standard tactical size
+                        minimumPixelSize: 64, 
                         maximumScale: 10000,
-                        scale: 5.0, // Reasonable physical scale
+                        scale: 5.0, 
                         silhouetteColor: Cesium.Color.AQUA,
-                        silhouetteSize: 2.0,
+                        silhouetteSize: 1.0,
                         color: Cesium.Color.WHITE.withAlpha(1.0),
                         colorBlendMode: Cesium.ColorBlendMode.HIGHLIGHT,
                         heightReference: Cesium.HeightReference.NONE
                     },
-                    label: {
-                        text: `UAV-${flightId}`,
-                        font: 'bold 18px monospace',
-                        fillColor: Cesium.Color.AQUA,
-                        outlineColor: Cesium.Color.BLACK,
-                        outlineWidth: 3,
-                        style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                        verticalOrigin: Cesium.VerticalOrigin.BOTTOM,
-                        pixelOffset: new Cesium.Cartesian2(0, -50),
-                        disableDepthTestDistance: Number.POSITIVE_INFINITY
-                    }
+                    // Add a trail
+                    path: {
+                        resolution: 1,
+                        material: new Cesium.PolylineGlowMaterialProperty({
+                            glowPower: 0.1,
+                            color: Cesium.Color.CYAN
+                        }),
+                        width: 5,
+                        leadTime: 0,
+                        trailTime: 5 // 5 Seconds trail
+                    },
+                    // NO CESIUM LABEL
                 });
                 uavEntities.set(flightId, entity);
             }
+
+            // Register HTML Label for UAV
+            registerLabel(flightId, `UAV-${flightId}`, 'uav', () => {
+                const entity = uavEntities.get(flightId);
+                if (!entity || !viewer.value) return undefined;
+                return entity.position?.getValue(viewer.value.clock.currentTime);
+            }, { yOffset: 60 });
         });
     };
 
