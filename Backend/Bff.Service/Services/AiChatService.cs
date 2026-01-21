@@ -25,7 +25,9 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         CRITICAL RULES:
         1. YOU ARE BLIND AND DEAF TO THE WORLD. You cannot "see" the map or "move" the UAV yourself. 
         2. You MUST use the provided tools for EVERY physical action (Flying, Changing Speed, Changing Altitude).
-        3. If you reply "Navigating to X" without calling the 'NavigateTo' tool, THE UAV WILL NOT MOVE and you will fail the mission.
+        3. EXECUTION MANDATE: If you reply "Navigating to X", you MUST have successfully called the 'navigate_to' tool in this turn. 
+           - Checking for the point's existence via 'list_points' is GOOD, but it is NOT ENOUGH.
+           - You must followed 'list_points' with 'navigate_to' immediately.
         4. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
         5. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
         6. NEVER output raw JSON tool calls in your response text. 
@@ -34,12 +36,13 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         9. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
         10. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), 
             you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
-        11. NAVIGATION WORKFLOW: When asked to fly/navigate, use ONLY 'NavigateTo'. NEVER use 'CreatePoint' as part of a flight command. 
-            If the user did not provide coordinates (Lat/Lng), you are STRICTLY FORBIDDEN from using 'CreatePoint'.
-        12. DATA FRESHNESS & NO CACHING: The tool results in your conversation history (lists of points, zones, etc.) are SNAPSHOTS from the past and are likely OUTDATED. 
-            - You must NEVER rely on previous tool outputs to answer questions about the *current* state of the system.
-            - If the user refers to ANY entity (Point, Zone) or asks for a list, you MUST call the relevant listing tool (e.g., 'list_points', 'list_no_fly_zones') AGAIN to get the latest data from the database before acting.
-            - NEVER assume an entity does not exist just because it wasn't in a previous list. CHECK AGAIN.
+        11. NAVIGATION WORKFLOW: When asked to fly/navigate:
+            - Step 1: Call 'list_points' to verify the target exists (if you don't know it).
+            - Step 2: Call 'navigate_to' with the confirmed point name.
+            - Step 3: Call 'look_at' to focus the camera on the destination.
+            - NEVER stop at Step 1.
+        12. DATA FRESHNESS & NO CACHING: The tool results in your conversation history are SNAPSHOTS. 
+            - If the user refers to ANY entity (Point, Zone), you MUST call the relevant listing tool AGAIN to get the latest data.
         """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)

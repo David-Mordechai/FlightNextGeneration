@@ -4,11 +4,12 @@ import * as Cesium from 'cesium';
 export interface ScreenLabel {
     id: string;
     name: string;
+    subLabel?: string; // New field for ETA/Dist
     x: number;
     y: number;
     visible: boolean;
     type: 'home' | 'target' | 'zone' | 'uav';
-    noBackground?: boolean; // New prop for UAV
+    noBackground?: boolean; 
 }
 
 // Global state for labels to be shared across composables
@@ -16,6 +17,7 @@ const screenLabels = ref<ScreenLabel[]>([]);
 const trackedEntities = new Map<string, {
     positionCallback: () => Cesium.Cartesian3 | undefined;
     name: string;
+    subLabel?: string; // Stored here
     type: 'home' | 'target' | 'zone' | 'uav';
     yOffset?: number;
     noBackground?: boolean;
@@ -27,7 +29,7 @@ let updateListener: ((scene: Cesium.Scene, time: Cesium.JulianDate) => void) | n
 
 export function useScreenLabels() {
     
-    const registerLabel = (id: string, name: string, type: 'home' | 'target' | 'zone' | 'uav', positionCallback: () => Cesium.Cartesian3 | undefined, options: { yOffset?: number, noBackground?: boolean } = {}) => {
+    const registerLabel = (id: string, name: string, type: 'home' | 'target' | 'zone' | 'uav', positionCallback: () => Cesium.Cartesian3 | undefined, options: { yOffset?: number, noBackground?: boolean, subLabel?: string } = {}) => {
         trackedEntities.set(id, { name, type, positionCallback, ...options });
     };
 
@@ -52,6 +54,7 @@ export function useScreenLabels() {
                         newLabels.push({
                             id,
                             name: data.name,
+                            subLabel: data.subLabel, // Pass through
                             x: screenPos.x,
                             y: screenPos.y - (data.yOffset || 0),
                             visible: true,

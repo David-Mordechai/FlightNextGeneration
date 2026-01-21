@@ -16,7 +16,10 @@ defineProps<{
     >
       <div class="glass-label px-3 py-1 rounded shadow-lg border border-white/20 flex items-center gap-2">
         <span class="w-2 h-2 rounded-full" :class="label.type === 'home' ? 'bg-blue-500' : label.type === 'target' ? 'bg-red-500' : label.type === 'uav' ? 'bg-cyan-400' : 'bg-transparent hidden'"></span>
-        <span class="text-xs font-medium text-white tracking-wide font-sans whitespace-nowrap">{{ label.name }}</span>
+        <div class="flex flex-col">
+            <span class="text-xs font-medium text-white tracking-wide font-sans whitespace-nowrap">{{ label.name }}</span>
+            <span v-if="label.subLabel" class="text-[10px] font-mono font-bold text-cyan-300 leading-tight">{{ label.subLabel }}</span>
+        </div>
       </div>
       <!-- Triangle Pointer -->
       <div class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-t-[6px] border-t-slate-900/60 mx-auto"></div>

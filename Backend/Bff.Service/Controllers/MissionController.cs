@@ -10,12 +10,20 @@ public record TargetRequest(double Lat, double Lng);
 public record SpeedRequest(double Speed);
 public record AltitudeRequest(double Altitude);
 public record PayloadPointRequest(double Lat, double Lng);
+public record CameraFocusRequest(double Lat, double Lng);
 public record RouteData(object Path, double Distance);
 
 [ApiController]
 [Route("api/mission")]
 public class MissionController(FlightStateService flightState, IHubContext<FlightHub> hubContext, AiChatService aiChatService) : ControllerBase
 {
+    [HttpPost("camera/focus")]
+    public async Task<IActionResult> FocusCamera([FromBody] CameraFocusRequest request)
+    {
+        await hubContext.Clients.All.SendAsync("FocusCamera", request.Lat, request.Lng);
+        return Ok(new { Message = $"Camera focused on {request.Lat}, {request.Lng}" });
+    }
+
     [HttpPost("chat")]
     public async Task<IActionResult> Chat([FromBody] string message)
     {

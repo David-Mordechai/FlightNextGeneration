@@ -56,6 +56,25 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         const currentViewer = viewer.value;
         if (!currentViewer) return;
 
+        // Listen for AI-driven Camera Focus
+        signalRService.on('FocusCamera', (lat: number, lng: number) => {
+            if (!currentViewer) return;
+            
+            currentViewer.camera.flyTo({
+                destination: Cesium.Cartesian3.fromDegrees(
+                    lng, 
+                    lat - 0.05, // Offset latitude to look "forward"/North-ish
+                    4000 // Altitude
+                ),
+                orientation: {
+                    heading: Cesium.Math.toRadians(0), // North up
+                    pitch: Cesium.Math.toRadians(-45), // 45 degree angle
+                    roll: 0.0
+                },
+                duration: 3.0 // Smooth flight
+            });
+        });
+
         // Listen for Optimal Route
         signalRService.on('RouteCalculated', (pathData: any[]) => {
             if (!currentViewer) return;
@@ -65,8 +84,6 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             // CRITICAL: Polylines need at least 2 points to render without crashing
             if (pathData && pathData.length >= 2) {
                 // Cache the path for the beam logic
-                // Using a generic key or specific flightId if available. 
-                // Since SignalR RouteCalculated might not have flightId yet, we'll store it as 'global' or use first data received.
                 flightPathCache.set('active', pathData);
 
                 const lastPoint = pathData[pathData.length - 1];
@@ -370,6 +387,100 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             }
 
             // Register HTML Label for UAV
+            // Dynamic Label Logic: Show ETA/Dist when Transiting
+            let subLabel: string | undefined = undefined;
+
+            if (flightMode === 'Transiting' && speed > 1) {
+                let totalDistance = 0;
+                const path = flightPathCache.get('active');
+                
+                // If we have an active multi-point path (Optimal Route), calculate along the path
+                if (path && path.length > 1) {
+                    // 1. Find the closest point index to know where we are
+                    // We assume the UAV is between index i and i+1
+                    // Simple heuristic: Find the closest waypoint to current position
+                    let closestIdx = 0;
+                    let minGap = Infinity;
+                    
+                    for (let i = 0; i < path.length; i++) {
+                        const p = path[i];
+                        const gap = Math.pow(p.lat - lat, 2) + Math.pow(p.lng - lng, 2);
+                        if (gap < minGap) {
+                            minGap = gap;
+                            closestIdx = i;
+                        }
+                    }
+                    
+                    // We need to determine if we passed closestIdx or are approaching it.
+                    // Simplified: We sum from closestIdx+1 to end, plus distance from UAV to closestIdx+1
+                    // Better approach: Since we are flying TO path[i+1], let's assume we are targeting the next point.
+                    
+                    // Let's iterate forward and sum segments
+                    
+                    // Distance from UAV to the next target waypoint (simplified assumption: usually closest+1)
+                    // However, robust logic is: distance(UAV, path[closestIdx]) is negligible if we are ON the point
+                    // Let's just sum segments starting from the one AFTER the closest point
+                    // And add distance from UAV to that next point.
+                    
+                    // Fallback to simple logic: If index is last, just distance to end.
+                    
+                    // Calculate distance from UAV to path[closestIdx] (or next one if we passed it?)
+                    // This is tricky without knowing segment progress.
+                    // Alternative: Sum ALL segments from closestIdx to End.
+                    // Total = Distance(UAV, path[closestIdx+1]) + Sum(path[closestIdx+1] -> End)
+                    
+                    const nextIdx = closestIdx < path.length - 1 ? closestIdx + 1 : closestIdx;
+                    
+                    // 1. UAV to Next Waypoint (High Precision WGS84 Geodesic)
+                    const uavCartographic = Cesium.Cartographic.fromDegrees(lng, lat);
+                    const nextCartographic = Cesium.Cartographic.fromDegrees(path[nextIdx].lng, path[nextIdx].lat);
+                    
+                    const geodesic = new Cesium.EllipsoidGeodesic();
+                    geodesic.setEndPoints(uavCartographic, nextCartographic);
+                    totalDistance += geodesic.surfaceDistance;
+
+                    // 2. Sum remaining segments
+                    for (let i = nextIdx; i < path.length - 1; i++) {
+                        const p1 = path[i];
+                        const p2 = path[i+1];
+                        
+                        const c1 = Cesium.Cartographic.fromDegrees(p1.lng, p1.lat);
+                        const c2 = Cesium.Cartographic.fromDegrees(p2.lng, p2.lat);
+                        
+                        geodesic.setEndPoints(c1, c2);
+                        totalDistance += geodesic.surfaceDistance;
+                    }
+                } else {
+                    // Direct line fallback (WGS84)
+                    const uavCartographic = Cesium.Cartographic.fromDegrees(lng, lat);
+                    const targetCartographic = Cesium.Cartographic.fromDegrees(targetLng, targetLat);
+                    
+                    const geodesic = new Cesium.EllipsoidGeodesic();
+                    geodesic.setEndPoints(uavCartographic, targetCartographic);
+                    totalDistance = geodesic.surfaceDistance;
+                }
+
+                // Adjust for 3km Orbit Radius
+                totalDistance = Math.max(0, totalDistance - 3000);
+
+                const distStr = totalDistance > 1000 ? `${(totalDistance/1000).toFixed(2)}km` : `${Math.round(totalDistance)}m`;
+                
+                // FIX: Speed is in Knots. Convert to m/s for correct time.
+                // 1 Knot = 0.514444 m/s
+                const speedMs = speed * 0.514444;
+                const timeSeconds = speedMs > 0 ? totalDistance / speedMs : 0;
+                
+                // Format time: "2m 30s" or "45s"
+                let timeStr = '';
+                if (timeSeconds > 60) {
+                    timeStr = `${Math.floor(timeSeconds / 60)}m ${Math.round(timeSeconds % 60)}s`;
+                } else {
+                    timeStr = `${Math.round(timeSeconds)}s`;
+                }
+
+                subLabel = `${distStr} • ${timeStr}`;
+            }
+
             registerLabel(flightId, 'UAV 100', 'uav', () => {
                 const entity = uavEntities.get(flightId);
                 const currentViewer = viewer.value;
@@ -380,7 +491,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 } catch (e) {
                     return undefined;
                 }
-            }, { yOffset: 35 });
+            }, { yOffset: 35, subLabel }); // Pass subLabel here
         });
     };
 

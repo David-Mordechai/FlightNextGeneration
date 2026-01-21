@@ -213,4 +213,33 @@ public class Tools
             return "Fail to communicate with the service";
         }
     }
+
+    [McpServerTool, Description("Move the main map camera to look at a specific named location.")]
+    public async Task<string> LookAt(
+        [Description("The name of the location to focus the camera on."), Required] string location)
+    {
+        try
+        {
+            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
+            if (!targetCoords.HasValue) return $"Could not find coordinates for {location}.";
+
+            var json = JsonSerializer.Serialize(new
+            {
+                lat = targetCoords.Value.Lat,
+                lng = targetCoords.Value.Lng
+            });
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            var res = await _httpClient.PostAsync("api/mission/camera/focus", content);
+
+            if (!res.IsSuccessStatusCode) return $"Fail to focus camera on {location}.";
+
+            _logger.LogInformation("Map camera focused on {Location}.", location);
+            return $"Map camera focused on {location}.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Fail to communicate with the service");
+            return "Fail to communicate with the service";
+        }
+    }
 }
