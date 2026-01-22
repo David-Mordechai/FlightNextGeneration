@@ -237,5 +237,18 @@ public class FlightStateService
     public void SetAltitude(double altitudeFt)
     {
         TargetAltitudeFt = altitudeFt;
+        
+        // PROPAGATE TO REMAINING WAYPOINTS
+        // If we have a mission in progress, update all future legs to this altitude
+        if (Waypoints.Count > 0)
+        {
+            var updatedWaypoints = new Queue<(double Lat, double Lng, double Alt)>();
+            while (Waypoints.Count > 0)
+            {
+                var wp = Waypoints.Dequeue();
+                updatedWaypoints.Enqueue((wp.Lat, wp.Lng, altitudeFt));
+            }
+            Waypoints = updatedWaypoints;
+        }
     }
 }

@@ -58,6 +58,7 @@ Next-generation flight control and visualization system with C4I entity manageme
     - **Logs:** Centralized logging via **Serilog** with the OpenTelemetry sink.
 
 - **User Interface Enhancements**
+  - **UAV Labels:** Stacked Distance and ETA vertically with 'DST:' and 'ETA:' prefixes for better readability.
   - **Mission Chat:** 
     - Implemented "AI Response Timing" display.
     - Increased font sizes and improved text visibility for better readability.

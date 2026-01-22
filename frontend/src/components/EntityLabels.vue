@@ -18,7 +18,11 @@ defineProps<{
         <span class="w-2 h-2 rounded-full" :class="label.type === 'home' ? 'bg-blue-500' : label.type === 'target' ? 'bg-red-500' : label.type === 'uav' ? 'bg-cyan-400' : 'bg-transparent hidden'"></span>
         <div class="flex flex-col">
             <span class="text-xs font-medium text-white tracking-wide font-sans whitespace-nowrap">{{ label.name }}</span>
-            <span v-if="label.subLabel" class="text-[10px] font-mono font-bold text-cyan-300 leading-tight">{{ label.subLabel }}</span>
+            <div v-if="label.subLabel" class="flex flex-col">
+                <span v-for="(line, idx) in label.subLabel.split('|')" :key="idx" class="text-[10px] font-mono font-bold text-cyan-300 leading-none py-0.5 whitespace-nowrap">
+                    {{ line }}
+                </span>
+            </div>
         </div>
       </div>
       <!-- Triangle Pointer -->

@@ -478,7 +478,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     timeStr = `${Math.round(timeSeconds)}s`;
                 }
 
-                subLabel = `${distStr} • ${timeStr}`;
+                subLabel = `DTG: ${distStr}|ETA: ${timeStr}`;
             }
 
             registerLabel(flightId, 'UAV 100', 'uav', () => {
