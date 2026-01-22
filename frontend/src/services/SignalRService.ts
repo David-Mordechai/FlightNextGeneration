@@ -77,6 +77,11 @@ class SignalRService {
   public async sendChatMessage(user: string, message: string): Promise<void> {
     await this.connection.invoke("ProcessChatMessage", user, message);
   }
+
+  public async checkAiStatus(): Promise<boolean> {
+    if (this.connection.state !== signalR.HubConnectionState.Connected) return false;
+    return await this.connection.invoke("CheckAiStatus");
+  }
 }
 
 export const signalRService = new SignalRService();

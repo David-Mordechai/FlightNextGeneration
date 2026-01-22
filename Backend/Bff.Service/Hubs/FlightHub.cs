@@ -10,6 +10,20 @@ public class FlightHub(AiChatService aiChatService, ILogger<FlightHub> logger) :
         await Clients.All.SendAsync("ReceiveFlightData", flightId, latitude, longitude, heading, altitude, speed);
     }
 
+    public async Task<bool> CheckAiStatus()
+    {
+        var isReady = await aiChatService.CheckReadinessAsync();
+        if (isReady)
+        {
+            logger.LogInformation("Client requested AI Status: ONLINE");
+        }
+        else
+        {
+            logger.LogWarning("Client requested AI Status: OFFLINE (Check failed)");
+        }
+        return isReady;
+    }
+
     public async Task ProcessChatMessage(string user, string message)
     {
         // Simply broadcast the message to all clients

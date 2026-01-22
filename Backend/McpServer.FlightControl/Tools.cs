@@ -86,9 +86,13 @@ public class Tools
                 if (!res.IsSuccessStatusCode)
                     return $"Fail to update mission to location {location}.";
 
-                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}).", location,
+                // AUTO-LOCK SENSOR (Implicit PointPayload)
+                // We want the camera to look at the destination while flying
+                await PointPayload(location);
+
+                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}). Sensor locked.", location,
                     targetCoords.Value.Lat, targetCoords.Value.Lng);
-                return $"Path clear. Flying directly to {location}.";
+                return $"Path clear. Flying directly to {location}. Sensor locked on target.";
             }
             else
             {
@@ -104,8 +108,11 @@ public class Tools
                 var execRes = await _httpClient.PostAsync("api/mission/path/execute", null);
                 if (!execRes.IsSuccessStatusCode) return "Failed to execute optimal path.";
 
-                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}.", location);
-                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}.";
+                // AUTO-LOCK SENSOR
+                await PointPayload(location);
+
+                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}. Sensor locked.", location);
+                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}. Sensor locked on target.";
             }
         }
         catch (Exception ex)
@@ -214,32 +221,11 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Move the main map camera to look at a specific named location.")]
-    public async Task<string> LookAt(
-        [Description("The name of the location to focus the camera on."), Required] string location)
-    {
-        try
-        {
-            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
-            if (!targetCoords.HasValue) return $"Could not find coordinates for {location}.";
-
-            var json = JsonSerializer.Serialize(new
-            {
-                lat = targetCoords.Value.Lat,
-                lng = targetCoords.Value.Lng
-            });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await _httpClient.PostAsync("api/mission/camera/focus", content);
-
-            if (!res.IsSuccessStatusCode) return $"Fail to focus camera on {location}.";
-
-            _logger.LogInformation("Map camera focused on {Location}.", location);
-            return $"Map camera focused on {location}.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fail to communicate with the service");
-            return "Fail to communicate with the service";
-        }
-    }
+    // [McpServerTool, Description("Move the main map camera to look at a specific named location.")]
+    // public async Task<string> LookAt(
+    //     [Description("The name of the location to focus the camera on."), Required] string location)
+    // {
+    //     // Tool disabled per user request to restrict map camera control.
+    //     return "Map camera control is disabled.";
+    // }
 }

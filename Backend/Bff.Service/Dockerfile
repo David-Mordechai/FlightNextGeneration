@@ -1,6 +1,8 @@
 # See https://aka.ms/customizecontainer to learn how to customize your debug container and how Visual Studio uses this Dockerfile to build your images for faster debugging.
 
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Install native dependencies for Whisper/Sherpa
+RUN apt-get update && apt-get install -y libgomp1 libatomic1 && rm -rf /var/lib/apt/lists/*
 USER app
 WORKDIR /app
 EXPOSE 8080
@@ -22,4 +24,6 @@ RUN dotnet publish "./Bff.Service.csproj" -c $BUILD_CONFIGURATION -o /app/publis
 FROM base AS final
 WORKDIR /app
 COPY --from=publish /app/publish .
+# Copy resources (models) directly to the final image
+COPY ["Bff.Service/resources", "resources/"]
 ENTRYPOINT ["dotnet", "Bff.Service.dll"]

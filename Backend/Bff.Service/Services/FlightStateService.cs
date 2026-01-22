@@ -47,6 +47,7 @@ public class FlightStateService
         Speed = CurrentSpeedKts,
         TargetLat,
         TargetLng,
+        Waypoints = Waypoints.ToList(), // Expose full path
         PayloadPitch,
         PayloadYaw,
         Mode = Mode.ToString() // Send Mode as string ('Transiting' or 'Orbiting')

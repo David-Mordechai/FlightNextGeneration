@@ -4,6 +4,19 @@
 Next-generation flight control and visualization system with C4I entity management and AI-driven mission planning.
 
 ## Features Implemented
+- **Voice Control & Co-pilot (Operation "Voice Command")**
+  - **Local Speech Engine:** Replaced Google TTS with **SherpaOnnx** (Offline TTS) and **Whisper.net** (Offline STT).
+  - **Co-pilot Experience:**
+    - **Wake Word:** First-click interaction performs a backend AI readiness check.
+    - **Greeting:** "I am here to assist" (Audio + Text).
+    - **Interaction Flow:** Hold-to-Speak -> "How can I help?" -> **Tactical Chirp** -> Record.
+    - **Feedback:** "Processing..." transient message appears instantly and is replaced by the real response.
+    - **Visuals:** Mic button pulses red and input placeholder changes to "RECORDING..." instantly.
+  - **Robustness:**
+    - **Audio Unlock:** Auto-resumes AudioContext on first user interaction to comply with browser autoplay policies.
+    - **Resampling:** Implemented cross-platform linear interpolation to ensure 16kHz audio compliance for Whisper.
+    - **State Machine:** Robust "Idle -> Preamble -> Initializing -> Recording" logic with cancellation support.
+
 - **Visual Overhaul (Operation "Satellite Command")**
   - **Map:** Switched to **Esri World Imagery** for high-resolution realistic satellite view.
   - **Markers (Cesium 3D Upgrade):** 
@@ -26,6 +39,9 @@ Next-generation flight control and visualization system with C4I entity manageme
   - **Safety Buffer:** Increased No-Fly Zone avoidance buffer to **55m** to guarantee clearance even with minor tracking errors.
 
 - **AI Mission Planning**
+  - **Simplified Workflow:** AI uses a single "NavigateTo" tool that handles route calculation and sensor locking automatically.
+  - **Automated Sensor:** `NavigateTo` tool automatically commands `PointPayload` to lock the camera on the destination.
+  - **Strict Response Style:** AI instructed to respond with a single, concise sentence (No markdown).
   - **Optimal Pathfinding:** Calculates shortest routes avoiding No-Fly Zones.
   - **Natural Language Control:** Navigate to named points via AI.
   - **Strict Data Freshness:** AI instructed to always fetch fresh entity lists from DB, never relying on conversation history cache.
@@ -56,11 +72,12 @@ Next-generation flight control and visualization system with C4I entity manageme
 
 ## Technical Details
 - **Backend:** .NET 10, Entity Framework Core, Npgsql (PostGIS), NetTopologySuite.
+- **Speech:** SherpaOnnx (TTS), Whisper.net (STT), AudioWorklet (Frontend Capture).
 - **Frontend:** Vue 3, Vite, Tailwind CSS, DaisyUI, Leaflet, SignalR.
 - **Visuals:** Custom CSS animations, SVG-in-DivIcon markers, dynamic Z-indexing.
 
 ## Key Files
-- `frontend/src/style.css`: Core visual effects (Neon, Glassmorphism, Animations).
-- `frontend/src/composables/useFlightLayer.ts`: Flight path visualization and arrival logic.
-- `Backend/Bff.Service/Services/FlightStateService.cs`: Physics engine (Orbit entry, Waypoint snapping).
-- `Backend/C4IEntities/Services/PathFindingService.cs`: Navigation graph and safety buffers.
+- `Backend/Bff.Service/Services/SpeechService.cs`: Offline TTS/STT logic with resampling.
+- `frontend/src/composables/useVoiceComms.ts`: AudioWorklet recording, beep sequencing, and state management.
+- `frontend/src/components/MissionChat.vue`: Chat UI with optimistic updates and readiness checks.
+- `Backend/McpServer.FlightControl/Tools.cs`: Navigation logic with auto-sensor lock.

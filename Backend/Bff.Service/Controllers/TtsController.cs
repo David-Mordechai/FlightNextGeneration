@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Mvc;
+using Bff.Service.Services;
 
 namespace Bff.Service.Controllers;
 
@@ -6,12 +7,12 @@ namespace Bff.Service.Controllers;
 [Route("api/[controller]")]
 public class TtsController : ControllerBase
 {
-    private readonly IHttpClientFactory _httpClientFactory;
+    private readonly ISpeechService _speechService;
     private readonly ILogger<TtsController> _logger;
 
-    public TtsController(IHttpClientFactory httpClientFactory, ILogger<TtsController> logger)
+    public TtsController(ISpeechService speechService, ILogger<TtsController> logger)
     {
-        _httpClientFactory = httpClientFactory;
+        _speechService = speechService;
         _logger = logger;
     }
 
@@ -25,33 +26,49 @@ public class TtsController : ControllerBase
 
         try
         {
-            var client = _httpClientFactory.CreateClient();
+            // Use local SpeechService
+            var audioBytes = await _speechService.GenerateAudioAsync(text);
             
-            // Google Translate TTS - Most reliable free source
-            // client=tw-ob is the public endpoint used by the Android app
-            var url = $"https://translate.google.com/translate_tts?ie=UTF-8&q={Uri.EscapeDataString(text)}&tl=en&client=tw-ob";
-
-            var request = new HttpRequestMessage(HttpMethod.Get, url);
-            // Critical: Spoof standard browser headers
-            request.Headers.Add("User-Agent", "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36");
-            request.Headers.Add("Referer", "https://translate.google.com/");
-            request.Headers.Add("Accept", "*/*");
-
-            var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead);
-
-            if (!response.IsSuccessStatusCode)
+            if (audioBytes.Length == 0)
             {
-                _logger.LogWarning("TTS Provider failed with status: {Status}", response.StatusCode);
-                return StatusCode((int)response.StatusCode, "TTS Provider failed");
+                 // Fallback or error?
+                 // For now, return error
+                 _logger.LogError("TTS Service returned empty audio.");
+                 return StatusCode(500, "TTS Generation Failed");
             }
 
-            var stream = await response.Content.ReadAsStreamAsync();
-            return File(stream, "audio/mpeg");
+            return File(audioBytes, "audio/wav");
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to proxy TTS request");
+            _logger.LogError(ex, "Failed to generate TTS");
             return StatusCode(500, "Internal TTS Error");
         }
+    }
+
+    [HttpPost("transcribe")]
+    public async Task<IActionResult> Transcribe(IFormFile file)
+    {
+        if (file == null || file.Length == 0)
+            return BadRequest("No file uploaded.");
+
+        try
+        {
+            using var stream = file.OpenReadStream();
+            var text = await _speechService.TranscribeAudioAsync(stream);
+            return Ok(new { text });
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Transcription failed");
+            return StatusCode(500, "Internal Server Error");
+        }
+    }
+
+    [HttpGet("status")]
+    public async Task<IActionResult> GetAiStatus([FromServices] Services.AiChatService chatService)
+    {
+        var isReady = await chatService.CheckReadinessAsync();
+        return Ok(new { ai_ready = isReady });
     }
 }

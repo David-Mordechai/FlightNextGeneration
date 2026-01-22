@@ -48,6 +48,7 @@ builder.Services.AddCors();
 builder.Services.AddHostedService<FlightSimulationWorker>();
 builder.Services.AddSingleton<FlightStateService>();
 builder.Services.AddSingleton<AiChatService>();
+builder.Services.AddSingleton<ISpeechService, SpeechService>();
 
 var app = builder.Build();
 

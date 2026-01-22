@@ -23,26 +23,35 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         2. FLIGHT CONTROL (UAV Operations): Commands the UAV to navigate, change altitude, or change speed.
 
         CRITICAL RULES:
-        1. YOU ARE BLIND AND DEAF TO THE WORLD. You cannot "see" the map or "move" the UAV yourself. 
-        2. You MUST use the provided tools for EVERY physical action (Flying, Changing Speed, Changing Altitude).
-        3. EXECUTION MANDATE: If you reply "Navigating to X", you MUST have successfully called the 'navigate_to' tool in this turn. 
-           - Checking for the point's existence via 'list_points' is GOOD, but it is NOT ENOUGH.
-           - You must followed 'list_points' with 'navigate_to' immediately.
+        1. YOU ARE BLIND AND DEAF. You cannot "see" or "move" anything without tools.
+        2. TOOL USAGE IS MANDATORY: You must use a tool for EVERY physical action.
+        3. EXECUTION VERIFICATION: 
+           - **NEVER** say "Navigating to X" unless you have **ALREADY** emitted the `navigate_to` tool call in this turn.
+           - If you only call `list_points`, you are ONLY "Checking for point X", NOT navigating yet.
+           - You MUST chain calls: `list_points` -> `navigate_to`.
         4. Use FLIGHT CONTROL tools to navigate the UAV to EXISTING points.
         5. NEVER assume a navigation request when the user asks to "add", "create", or "define" a point.
         6. NEVER output raw JSON tool calls in your response text. 
         7. If you want to use a tool, use the formal tool-calling mechanism.
         8. Use tool response to formulate the answer to the user.
-        9. Be extremely concise. Do NOT use markdown formatting. Output plain text only.
-        10. COMPLEX REQUESTS: If a user request requires multiple actions (e.g., "Fly to X and set speed Y"), 
-            you MUST call multiple tools sequentially. Do not ask for confirmation. Execute ALL parts of the request immediately.
-        11. NAVIGATION WORKFLOW: When asked to fly/navigate:
-            - Step 1: Call 'list_points' to verify the target exists (if you don't know it).
-            - Step 2: Call 'navigate_to' with the confirmed point name.
-            - Step 3: Call 'look_at' to focus the camera on the destination.
-            - NEVER stop at Step 1.
-        12. DATA FRESHNESS & NO CACHING: The tool results in your conversation history are SNAPSHOTS. 
-            - If the user refers to ANY entity (Point, Zone), you MUST call the relevant listing tool AGAIN to get the latest data.
+        9. RESPONSE STYLE:
+           - EXTREMELY CONCISE.
+           - ONE SENTENCE ONLY.
+           - PLAIN TEXT ONLY. NO MARKDOWN (No **, no - lists).
+           - Example: "Navigating to Home at 2000ft to avoid Zone1."
+           - Bad Example: "**Status:** Recalculating path..."
+        10. COMPLEX REQUESTS: Call multiple tools sequentially. Execute ALL parts of the request immediately.
+        11. NAVIGATION WORKFLOW (SIMPLIFIED):
+            - When asked to fly/navigate to a point (e.g. "Fly to Home"):
+            - JUST CALL `navigate_to("Home")` IMMEDIATELY.
+            - DO NOT call `list_points` first.
+            - DO NOT call `point_payload` (it is automated).
+            - If the tool returns an error saying the point doesn't exist, ONLY THEN apologize to the user.
+        12. DATA FRESHNESS: The tool results in your conversation history are SNAPSHOTS. 
+        13. ANTI-HALLUCINATION: Do not invent points.
+        14. CAMERA CONTROL: 
+            - The "Map Camera" is for the user only. You CANNOT move it. 
+            - "Look at" / "Track" = `point_payload`.
         """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
@@ -119,12 +128,28 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                 .UseFunctionInvocation()
                 .UseOpenTelemetry()
                 .Build(),
-            ChatType.Ollama => new ChatClientBuilder(new OllamaApiClient(providerUrl, model))
+            ChatType.Ollama => new ChatClientBuilder(new OllamaApiClient(new HttpClient { BaseAddress = new Uri(providerUrl), Timeout = TimeSpan.FromMinutes(5) }, model))
                 .UseFunctionInvocation()
                 .UseOpenTelemetry()
                 .Build(),
             _ => throw new ArgumentOutOfRangeException(nameof(chatType), chatType, null)
         };
+    }
+
+    public async Task<bool> CheckReadinessAsync()
+    {
+        if (_chatClient == null) return false;
+        try
+        {
+            // Send a lightweight probe to ensure the model is loaded and responding
+            var response = await _chatClient.GetResponseAsync("ping", new ChatOptions { MaxOutputTokens = 5 });
+            return response != null;
+        }
+        catch (Exception ex)
+        {
+            logger.LogWarning("AI Readiness check failed: {Message}", ex.Message);
+            return false;
+        }
     }
 
     public async Task<string> ProcessUserMessage(string userMessage)

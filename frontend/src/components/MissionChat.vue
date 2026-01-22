@@ -3,18 +3,21 @@ import { ref, onMounted, nextTick } from 'vue';
 import { signalRService } from '../services/SignalRService';
 import { useVoiceComms } from '../composables/useVoiceComms';
 
-const { speak, toggleMute, isMuted, voiceStatus } = useVoiceComms();
+const { speak, toggleMute, isMuted, voiceStatus, startRecording, stopRecording, transcribe, speakImmediate } = useVoiceComms();
 
 interface Message {
   user: string;
   text: string;
   isSystem: boolean;
   duration?: number; // Duration in seconds
+  isTransient?: boolean; // If true, this message won't persist to DB but stays in UI session
 }
 
 const messages = ref<Message[]>([]);
 const newMessage = ref('');
 const chatContainer = ref<HTMLElement | null>(null);
+const micState = ref<'initial' | 'checking' | 'ready' | 'error'>('initial');
+const isMicActive = ref(false); // Local state for instant UI feedback
 
 const scrollToBottom = async () => {
   await nextTick();
@@ -23,8 +26,79 @@ const scrollToBottom = async () => {
   }
 };
 
-onMounted(() => {
+const handleMicClick = async () => {
+    // 1. Initial State: Check Readiness
+    if (micState.value === 'initial' || micState.value === 'error') {
+        micState.value = 'checking';
+        try {
+            const isReady = await signalRService.checkAiStatus();
+            if (isReady) {
+                micState.value = 'ready';
+                messages.value.push({ user: 'Mission Control', text: 'I am here to assist.', isSystem: true, isTransient: true });
+                await speakImmediate("I am here to assist.");
+            } else {
+                micState.value = 'error';
+                messages.value.push({ user: 'Mission Control', text: 'System unavailable.', isSystem: true, isTransient: true });
+                await speakImmediate("System unavailable.");
+            }
+        } catch (e) {
+            micState.value = 'error';
+            messages.value.push({ user: 'Mission Control', text: 'Connection error.', isSystem: true, isTransient: true });
+        }
+        return;
+    }
+};
+
+// Separate handlers for Recording (Only active when Ready)
+const handleMicDown = async () => {
+    if (micState.value !== 'ready') return;
+    isMicActive.value = true;
+    await startRecording();
+};
+
+const handleMicUp = async () => {
+  if (micState.value !== 'ready') return;
+  if (!isMicActive.value) return;
+  isMicActive.value = false;
+  
+  const blob = await stopRecording();
+  if (blob) {
+    const text = await transcribe(blob);
+    if (text) {
+        // 1. Show User Message Immediately (Optimistic)
+        const userMsgObj: Message = { user: 'Commander', text: text, isSystem: false };
+        messages.value.push(userMsgObj);
+
+        // 2. Show Processing (Transient)
+        const processingMsg: Message = { user: 'Mission Control', text: 'Processing...', isSystem: true, isTransient: true };
+        messages.value.push(processingMsg);
+        scrollToBottom();
+        
+        await speakImmediate("Processing.");
+
+        // 3. Send to Backend
+        await signalRService.sendChatMessage('Commander', text);
+    }
+  }
+};
+
+onMounted(async () => {
   signalRService.onReceiveChatMessage((user: string, text: string, duration?: number) => {
+    // Deduplicate: If we just sent this exact message as 'Commander', don't show it again
+    if (user === 'Commander') {
+        const lastMsg = messages.value[messages.value.length - 2]; // Check 2nd to last (since last is 'Processing')
+        if (lastMsg && lastMsg.user === 'Commander' && lastMsg.text === text) {
+            return;
+        }
+        // Also check last message just in case processing hasn't appeared or was cleared
+        const veryLast = messages.value[messages.value.length - 1];
+        if (veryLast && veryLast.user === 'Commander' && veryLast.text === text) {
+            return;
+        }
+    }
+
+    // We no longer remove "Processing..." messages here to let them stay in history
+    
     messages.value.push({
       user,
       text,
@@ -45,6 +119,15 @@ const sendMessage = async () => {
   if (!newMessage.value.trim()) return;
   const userMsg = newMessage.value;
   newMessage.value = '';
+  
+  // 1. Show User Message
+  messages.value.push({ user: 'Commander', text: userMsg, isSystem: false });
+
+  // 2. Show Processing
+  messages.value.push({ user: 'Mission Control', text: 'Processing...', isSystem: true, isTransient: true });
+  scrollToBottom();
+  await speakImmediate("Processing.");
+  
   await signalRService.sendChatMessage('Commander', userMsg);
 };
 </script>
@@ -61,21 +144,10 @@ const sendMessage = async () => {
       
       <!-- Audio Toggle -->
       <div class="flex items-center gap-2">
-        <span v-if="voiceStatus === 'error'" class="text-[10px] text-red-500 font-bold tracking-wider animate-pulse" title="System voice missing. Run: sudo apt install speech-dispatcher">
-          NO AUDIO DRIVER
+        <span v-if="voiceStatus === 'error'" class="text-[10px] text-red-500 font-bold tracking-wider animate-pulse" title="System voice missing">
+          NO AUDIO
         </span>
         
-        <!-- Test Button -->
-        <button 
-          @click="speak('The speakers are working.')" 
-          class="text-primary/60 hover:text-white transition-colors p-1"
-          title="Test Audio Output"
-        >
-          <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
-            <path stroke-linecap="square" stroke-linejoin="miter" d="M11.42 15.17L17.25 21A2.652 2.652 0 0021 17.25l-5.83-5.83m0 0a2.984 2.984 0 000-4.242L14.75 6.75m0 0l-1.06-1.06a1.5 1.5 0 010-2.122l.53-.53a1.5 1.5 0 012.122 0l1.06 1.06a1.5 1.5 0 010 2.122l-.53.53a1.5 1.5 0 01-2.122 0l1.06-1.06zm-4.242 4.242l-4.243 4.243a1.5 1.5 0 01-2.122 0l-1.06-1.06a1.5 1.5 0 010-2.122l4.243-4.243a1.5 1.5 0 012.122 0l1.06 1.06a1.5 1.5 0 010 2.122l-1.06-1.06z" />
-          </svg>
-        </button>
-
         <button 
           @click="toggleMute" 
           class="text-primary hover:text-white transition-colors p-1"
@@ -116,12 +188,45 @@ const sendMessage = async () => {
         <div class="p-4 bg-white/5 border-t border-white/5">
             <div class="flex gap-3 items-start bg-black/40 rounded-xl px-3 py-2 border border-white/5 focus-within:border-primary/30 transition-colors">
                 <span class="text-primary text-sm font-mono font-black opacity-50 mt-1">&gt;</span>
+                
+                <!-- Mic Button with Dynamic State -->
+                <button 
+                    @click="handleMicClick"
+                    @mousedown.prevent="handleMicDown" 
+                    @mouseup.prevent="handleMicUp" 
+                    @mouseleave.prevent="isMicActive ? handleMicUp() : null"
+                    class="mt-1 transition-all outline-none"
+                    :class="{
+                        'text-white/30 cursor-pointer': micState === 'initial',
+                        'text-yellow-500 animate-spin': micState === 'checking',
+                        'text-primary hover:text-white cursor-pointer': micState === 'ready' && !isMicActive,
+                        'text-red-500 animate-pulse': isMicActive,
+                        'text-red-700': micState === 'error'
+                    }"
+                    :title="micState === 'initial' ? 'Click to Initialize Voice' : (micState === 'ready' ? 'Hold to Speak' : 'Initializing...')"
+                >
+                    <!-- Loading Spinner -->
+                    <svg v-if="micState === 'checking'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0l3.181 3.183a8.25 8.25 0 0013.803-3.7M4.031 9.865a8.25 8.25 0 0113.803-3.7l3.181 3.182m0-4.991v4.99" />
+                    </svg>
+
+                    <!-- Error Icon -->
+                    <svg v-else-if="micState === 'error'" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="round" stroke-linejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+
+                    <!-- Mic Icon (Initial/Ready/Recording) -->
+                    <svg v-else xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke-width="2" stroke="currentColor" class="w-4 h-4">
+                        <path stroke-linecap="square" stroke-linejoin="miter" d="M12 18.75a6 6 0 006-6v-1.5m-6 7.5a6 6 0 01-6-6v-1.5m6 7.5v3.75m-3.75 0h7.5M12 15.75a3 3 0 01-3-3V4.5a3 3 0 116 0v8.25a3 3 0 01-3 3z" />
+                    </svg>
+                </button>
+
                 <textarea 
                     v-model="newMessage" 
                     @keydown.enter.exact.prevent="sendMessage"
                     rows="2"
                     class="bg-transparent w-full text-white outline-none placeholder-white/30 text-sm font-mono font-bold resize-none py-1 custom-scrollbar" 
-                    placeholder="ENTER COMMAND..." 
+                    :placeholder="isMicActive ? 'RECORDING...' : 'ENTER COMMAND...'" 
                 ></textarea>
                 <button @click="sendMessage" class="mt-1 text-xs font-black text-primary hover:text-white transition-colors uppercase tracking-widest">SEND</button>
             </div>
