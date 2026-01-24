@@ -5,8 +5,6 @@ import { TacticalBeamMaterialProperty, registerCustomMaterials } from '../utils/
 import { useScreenLabels } from './useScreenLabels';
 
 export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | null>) {
-    // Ensure custom materials are registered
-    registerCustomMaterials();
     
     // Use Shared Label System
     const { registerLabel } = useScreenLabels();
@@ -32,6 +30,9 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
         flightMode: string;
     } | null>(null);
 
+    // Reactive FOV state (Vertical Degrees) - Default to Narrow (5.0)
+    const sensorFov = ref(5.0);
+
     const FEET_TO_METERS = 0.3048;
 
     const clearOptimalPath = () => {
@@ -55,6 +56,9 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
     const initializeFlightListeners = () => {
         const currentViewer = viewer.value;
         if (!currentViewer) return;
+
+        // Register custom materials for this specific context
+        registerCustomMaterials(currentViewer, 'main');
 
         // Listen for AI-driven Camera Focus
         signalRService.on('FocusCamera', (lat: number, lng: number) => {
@@ -141,7 +145,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
             const flightId = "UAV-100";
             const lat = data.lat || data.Lat;
             const lng = data.lng || data.Lng;
-            const heading = data.heading || data.Heading;
+            const heading = data.heading || data.Heading || 0; // Default to 0 if missing
             const altitude = data.altitude || data.Altitude;
             const speed = data.speed || data.Speed;
             const targetLat = data.targetLat || data.TargetLat;
@@ -229,7 +233,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                         // @ts-ignore
                         material: new TacticalBeamMaterialProperty({
                             color: Cesium.Color.fromCssColorString('#00F2FF'),
-                            speed: 2.0
+                            speed: 2.0,
+                            contextId: 'main'
                         }),
                         // Push beam into background relative to UAV
                         // @ts-ignore
@@ -287,7 +292,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     orientation: orientation,
                     // Dynamic Scaling: Small when close, Huge on globe
                     model: {
-                        uri: '/ORBITER4.gltf',
+                        // Unique URL for Main Map context to avoid sharing conflicts
+                        uri: '/ORBITER4.gltf?v=main&cb=' + Math.random().toString(36).substring(7),
                         minimumPixelSize: 128, // Floor for globe visibility
                         maximumScale: 10000,
                         // Refined: 0.1 scale at 1km (visible), 10.0 scale at 500km (huge)
@@ -303,38 +309,111 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                 });
                 uavEntities.set(flightId, entity);
 
-                // --- SENSOR FOOTPRINT & FRUSTUM (Aspect Ratio Fix) ---
+                // --- SENSOR FOOTPRINT & FRUSTUM (Physics Vectors & Horizontal FOV) ---
                 const calculateFootprintCorners = (data: any): Cesium.Cartesian3[] => {
-                    const uav = uavEntities.get(flightId);
-                    const uavPos = uav?.position?.getValue(currentViewer.clock.currentTime);
-                    if (!uavPos) return [];
+                    const currentViewer = viewer.value;
+                    if (!currentViewer) return [];
 
-                    const altMeters = data.altitude * FEET_TO_METERS;
+                    // 1. SYNC: Use exact telemetry position
+                    const exactPos = Cesium.Cartesian3.fromDegrees(
+                        data.lng, 
+                        data.lat, 
+                        data.altitude * FEET_TO_METERS
+                    );
+
+                    // 2. FOV: Use Dynamic Sensor FOV (Vertical)
+                    // Aspect = 16:9
+                    const aspect = 16.0 / 9.0;
+                    const vFovHalf = Cesium.Math.toRadians(sensorFov.value / 2.0); 
+                    // Calculate Horizontal FOV from Vertical
+                    const hFovHalf = Math.atan(Math.tan(vFovHalf) * aspect);
+
+                    const tanH = Math.tan(hFovHalf);
+                    const tanV = Math.tan(vFovHalf);
+
+                    // 3. Sensor Angles
                     const yawRad = Cesium.Math.toRadians(data.payloadYaw);
                     const pitchRad = Cesium.Math.toRadians(data.payloadPitch);
-                    
-                    // Match 16:9 Aspect Ratio
-                    const halfFovY = Cesium.Math.toRadians(7.5); // 15 deg total height
-                    const halfFovX = Cesium.Math.toRadians(12.5); // 25 deg total width
 
+                    // 4. Construct Basis Vectors (ENU Frame)
+                    // Yaw 0 = North (+Y). Pitch 0 = Horizon. Pitch -90 = Down (-Z).
+                    
+                    // Forward Vector (Look Dir)
+                    // X = East = sin(Yaw) * cos(Pitch)
+                    // Y = North = cos(Yaw) * cos(Pitch)
+                    // Z = Up = sin(Pitch)
+                    const forward = new Cesium.Cartesian3(
+                        Math.sin(yawRad) * Math.cos(pitchRad),
+                        Math.cos(yawRad) * Math.cos(pitchRad),
+                        Math.sin(pitchRad)
+                    );
+                    
+                    // Global Up (for cross product)
+                    const globalUp = Cesium.Cartesian3.UNIT_Z;
+                    
+                    // Right Vector = Forward x GlobalUp
+                    // (Unless looking straight up/down, handled by normalization safety usually)
+                    const right = new Cesium.Cartesian3();
+                    Cesium.Cartesian3.cross(forward, globalUp, right);
+                    Cesium.Cartesian3.normalize(right, right);
+
+                    // Camera Up Vector = Right x Forward
+                    const up = new Cesium.Cartesian3();
+                    Cesium.Cartesian3.cross(right, forward, up);
+                    Cesium.Cartesian3.normalize(up, up);
+
+                    // 5. Transform from ENU to Fixed Frame (ECEF)
+                    const enuToFixed = Cesium.Transforms.eastNorthUpToFixedFrame(exactPos);
+                    const rotMatrix = Cesium.Matrix4.getMatrix3(enuToFixed, new Cesium.Matrix3());
+
+                    // 6. Calculate 4 Corner Rays
                     const corners: Cesium.Cartesian3[] = [];
-                    // Calculate the 4 corners of the 16:9 camera frustum intersection
-                    const offsets = [
-                        { p: -halfFovY, y: -halfFovX },
-                        { p: -halfFovY, y: halfFovX },
-                        { p: halfFovY, y: halfFovX },
-                        { p: halfFovY, y: -halfFovX }
+                    const multipliers = [
+                        { h: -1, v: 1 },  // Top-Left
+                        { h: 1, v: 1 },   // Top-Right
+                        { h: 1, v: -1 },  // Bottom-Right
+                        { h: -1, v: -1 }  // Bottom-Left
                     ];
 
-                    for (const offset of offsets) {
-                        const effectivePitch = pitchRad + offset.p;
-                        const effectiveYaw = yawRad + offset.y;
+                    for (const m of multipliers) {
+                        // Ray = Forward + (Right * tanH * m.h) + (Up * tanV * m.v)
+                        const hVec = new Cesium.Cartesian3();
+                        const vVec = new Cesium.Cartesian3();
+                        const rayLocal = new Cesium.Cartesian3();
+
+                        Cesium.Cartesian3.multiplyByScalar(right, tanH * m.h, hVec);
+                        Cesium.Cartesian3.multiplyByScalar(up, tanV * m.v, vVec);
                         
-                        const groundDist = altMeters / Math.tan(Math.abs(effectivePitch));
-                        const latOffset = (groundDist / 111320) * Math.cos(effectiveYaw);
-                        const lngOffset = (groundDist / (111320 * Math.cos(Cesium.Math.toRadians(data.lat)))) * Math.sin(effectiveYaw);
-                        
-                        corners.push(Cesium.Cartesian3.fromDegrees(data.lng + lngOffset, data.lat + latOffset, 0.2));
+                        Cesium.Cartesian3.add(forward, hVec, rayLocal);
+                        Cesium.Cartesian3.add(rayLocal, vVec, rayLocal);
+                        Cesium.Cartesian3.normalize(rayLocal, rayLocal);
+
+                        // Rotate to Global Fixed Frame
+                        const rayGlobal = new Cesium.Cartesian3();
+                        Cesium.Matrix3.multiplyByVector(rotMatrix, rayLocal, rayGlobal);
+
+                        // 4. Cast Ray
+                        const ray = new Cesium.Ray(exactPos, rayGlobal);
+                        let intersection = currentViewer.scene.globe.pick(ray, currentViewer.scene);
+                        const MAX_SENSOR_RANGE = 20000.0; // 20km Limit
+
+                        // 5. Fallback to Ellipsoid
+                        if (!intersection) {
+                            const interval = Cesium.IntersectionTests.rayEllipsoid(ray, Cesium.Ellipsoid.WGS84);
+                            if (interval) {
+                                intersection = Cesium.Ray.getPoint(ray, interval.start);
+                            }
+                        }
+
+                        // 6. Range Clamping (Sync with Video Fog)
+                        if (intersection) {
+                            const dist = Cesium.Cartesian3.distance(exactPos, intersection);
+                            if (dist > MAX_SENSOR_RANGE) {
+                                // Clamp to Max Range
+                                intersection = Cesium.Ray.getPoint(ray, MAX_SENSOR_RANGE);
+                            }
+                            corners.push(intersection);
+                        }
                     }
 
                     return corners;
@@ -349,8 +428,11 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                             return new Cesium.PolygonHierarchy(calculateFootprintCorners(data));
                         }, false) as any,
                         material: Cesium.Color.LIME.withAlpha(0.5), // Increased opacity
-                        perPositionHeight: true, 
-                        outline: false
+                        // Draping Fix: Disable perPositionHeight to clamp to ground/terrain automatically
+                        perPositionHeight: false, 
+                        outline: false,
+                        // Ensure it sits on top of terrain
+                        heightReference: Cesium.HeightReference.CLAMP_TO_GROUND
                     }
                 });
 
@@ -501,6 +583,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
 
     return {
         currentFlightData,
+        sensorFov,
         initializeFlightListeners,
         stopFlightListeners
     };

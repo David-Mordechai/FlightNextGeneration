@@ -32,7 +32,7 @@ public class FlightStateService
     // Payload (Camera Gimbal) State
     public double PayloadPitch { get; private set; } = -45; // Degrees (down)
     public double PayloadYaw { get; private set; } = 0;    // Degrees (relative to North)
-    private (double Lat, double Lng)? PayloadLockLocation { get; set; }
+    private (double Lat, double Lng, double Alt)? PayloadLockLocation { get; set; }
 
     // Current internal telemetry (for smoothing)
     public double CurrentSpeedKts { get; private set; } = 105;
@@ -84,12 +84,14 @@ public class FlightStateService
     {
         double? tLat = PayloadLockLocation?.Lat;
         double? tLng = PayloadLockLocation?.Lng;
+        double tAlt = PayloadLockLocation?.Alt ?? 0;
 
         // Fallback to navigation target if transiting and no manual lock is set
         if (!tLat.HasValue && Mode == FlightMode.Transiting)
         {
             tLat = TargetLat;
             tLng = TargetLng;
+            tAlt = 0; // Assuming Nav Target is ground level if unknown
         }
 
         if (tLat.HasValue && tLng.HasValue)
@@ -101,7 +103,7 @@ public class FlightStateService
 
             // Calculate Pitch (Angle down to target)
             var horizontalDistMeters = Math.Sqrt(dLng * dLng + dLat * dLat) * 111320; // Approx meters
-            var altMeters = CurrentAltitudeFt * FEET_TO_METERS;
+            var altMeters = (CurrentAltitudeFt * FEET_TO_METERS) - tAlt; // Relative Height
             
             // Avoid division by zero and handle very close targets
             if (horizontalDistMeters < 10) horizontalDistMeters = 10;
@@ -115,9 +117,9 @@ public class FlightStateService
         }
     }
 
-    public void PointPayload(double lat, double lng)
+    public void PointPayload(double lat, double lng, double alt = 0)
     {
-        PayloadLockLocation = (lat, lng);
+        PayloadLockLocation = (lat, lng, alt);
     }
 
     public void ResetPayload()

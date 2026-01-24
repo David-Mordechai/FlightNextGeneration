@@ -186,14 +186,15 @@ public class Tools
             var json = JsonSerializer.Serialize(new
             {
                 lat = targetCoords.Value.Lat,
-                lng = targetCoords.Value.Lng
+                lng = targetCoords.Value.Lng,
+                alt = targetCoords.Value.Alt
             });
             var content = new StringContent(json, Encoding.UTF8, "application/json");
             var res = await _httpClient.PostAsync("api/mission/payload/point", content);
 
             if (!res.IsSuccessStatusCode) return $"Fail to point camera at {location}.";
 
-            _logger.LogInformation("Camera gimbal locked to {Location}.", location);
+            _logger.LogInformation("Camera gimbal locked to {Location} (Alt: {Alt}m).", location, targetCoords.Value.Alt);
             return $"Camera gimbal locked to {location}. Sensor footprint updated on map.";
         }
         catch (Exception ex)

@@ -9,7 +9,7 @@ namespace Bff.Service.Controllers;
 public record TargetRequest(double Lat, double Lng);
 public record SpeedRequest(double Speed);
 public record AltitudeRequest(double Altitude);
-public record PayloadPointRequest(double Lat, double Lng);
+public record PayloadPointRequest(double Lat, double Lng, double Alt = 0);
 public record CameraFocusRequest(double Lat, double Lng);
 public record RouteData(object Path, double Distance);
 
@@ -34,7 +34,7 @@ public class MissionController(FlightStateService flightState, IHubContext<Fligh
     [HttpPost("payload/point")]
     public IActionResult PointPayload([FromBody] PayloadPointRequest request)
     {
-        flightState.PointPayload(request.Lat, request.Lng);
+        flightState.PointPayload(request.Lat, request.Lng, request.Alt);
         return Ok(new { Message = "Sensor locked to target location." });
     }
 

@@ -8,21 +8,15 @@ test('Create Rectangle Zone', async ({ page }) => {
   await page.goto('http://localhost:5173');
 
   // Wait for Cesium to load (canvas to be present)
-  const mapCanvas = page.locator('.cesium-widget canvas');
-  await expect(mapCanvas).toBeVisible({ timeout: 10000 });
-
-  // 1.5 Open the Sidebar (Drawer)
-  await page.locator('label.drawer-button').first().click();
-  await page.waitForTimeout(500);
+  // Use the first widget (Main Map) specifically
+  const mapWidget = page.locator('.cesium-widget').first();
+  const mapCanvas = mapWidget.locator('canvas');
+  await expect(mapCanvas).toBeVisible({ timeout: 15000 });
 
   // 2. Click "Create Rectangle Zone"
   await page.getByText('Create Rectangle Zone').click();
   
-  // Close the drawer to unblock the map
-  // Click the overlay (standard DaisyUI behavior)
-  await page.locator('label.drawer-overlay').click();
-  
-  await page.waitForTimeout(500); // Wait for animation
+  await page.waitForTimeout(1500); // Wait for state change
 
   // 3. Simulate Drag on Map (Center Screen)
   const box = await mapCanvas.boundingBox();
@@ -40,15 +34,15 @@ test('Create Rectangle Zone', async ({ page }) => {
 
     // Move to start
     await page.mouse.move(startX, startY);
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(100);
     
     // Press Left Down
     await page.mouse.down();
-    await page.waitForTimeout(200);
+    await page.waitForTimeout(100);
     
-    // Drag slowly
-    await page.mouse.move(endX, endY, { steps: 20 });
-    await page.waitForTimeout(200);
+    // Drag faster
+    await page.mouse.move(endX, endY, { steps: 5 });
+    await page.waitForTimeout(100);
     
     // Release Left Up
     await page.mouse.up();

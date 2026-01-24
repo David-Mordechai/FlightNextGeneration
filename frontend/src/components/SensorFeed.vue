@@ -1,6 +1,5 @@
 <script setup lang="ts">
-import { computed, onMounted, ref, watch } from 'vue';
-import * as Cesium from 'cesium';
+import { ref, computed, watch } from 'vue';
 
 const props = defineProps<{
   lat: number;
@@ -9,97 +8,69 @@ const props = defineProps<{
   pitch: number;
   yaw: number;
   flightId: string;
-  // Main viewer reference to share resources
-  mainViewer: Cesium.Viewer | null;
+  fov: number; // Received from parent
 }>();
 
-const payloadContainer = ref<HTMLElement | null>(null);
-let pipViewer: Cesium.Viewer | null = null;
-const FEET_TO_METERS = 0.3048;
+const emit = defineEmits(['update:fov']);
 
-onMounted(async () => {
-  if (payloadContainer.value) {
-    // Create a lightweight secondary viewer for the PiP
-    pipViewer = new Cesium.Viewer(payloadContainer.value, {
-      terrainProvider: new Cesium.EllipsoidTerrainProvider(), // Fast initial load
-      animation: false,
-      baseLayerPicker: false,
-      fullscreenButton: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      navigationHelpButton: false,
-      scene3DOnly: true,
-      useBrowserRecommendedResolution: true,
-    });
+const iframeRef = ref<HTMLIFrameElement | null>(null);
 
-    // Load actual terrain in background
-    Cesium.createWorldTerrainAsync().then(provider => {
-        if (pipViewer) pipViewer.terrainProvider = provider;
-    });
-
-    // Match imagery with main map
-    const esri = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-    );
-    pipViewer.imageryLayers.addImageryProvider(esri);
-
-    // Disable heavy effects
-    pipViewer.scene.fog.enabled = false;
-    pipViewer.scene.globe.showGroundAtmosphere = false;
-    if (pipViewer.scene.skyAtmosphere) {
-      pipViewer.scene.skyAtmosphere.show = false;
-    }
-    
-    // Hide UI elements
-    (pipViewer.cesiumWidget.creditContainer as HTMLElement).style.display = 'none';
-    
-    // Initial camera placement
-    updateCamera();
-  }
-});
-
-const updateCamera = () => {
-  if (!pipViewer) return;
-
-  const position = Cesium.Cartesian3.fromDegrees(props.lng, props.lat, props.altitude * FEET_TO_METERS);
-  
-  pipViewer.camera.setView({
-    destination: position,
-    orientation: {
-      heading: Cesium.Math.toRadians(props.yaw),
-      pitch: Cesium.Math.toRadians(props.pitch),
-      roll: 0.0
-    }
-  });
-  
-  // Force a render tick for the secondary view
-  pipViewer.render();
-};
-
-// Update PiP camera based on telemetry
+// Send telemetry updates to the isolated iframe
 watch(() => [props.lat, props.lng, props.altitude, props.pitch, props.yaw], () => {
-  updateCamera();
+    if (iframeRef.value && iframeRef.value.contentWindow) {
+        iframeRef.value.contentWindow.postMessage({
+            type: 'UPDATE_CAMERA',
+            payload: {
+                lat: props.lat,
+                lng: props.lng,
+                altitude: props.altitude,
+                pitch: props.pitch,
+                yaw: props.yaw
+            }
+        }, '*');
+    }
 });
+
+// Send FOV updates
+watch(() => props.fov, (newFov) => {
+    if (iframeRef.value && iframeRef.value.contentWindow) {
+        iframeRef.value.contentWindow.postMessage({
+            type: 'UPDATE_FOV',
+            payload: newFov
+        }, '*');
+    }
+});
+
+const setZoom = (fov: number) => {
+    emit('update:fov', fov);
+};
 
 const formattedCoords = computed(() => {
   return `${props.lat.toFixed(6)}°N, ${props.lng.toFixed(6)}°E`;
 });
 
 const timestamp = computed(() => {
-  const iso = new Date().toISOString();
-  const timePart = iso.split('T')[1];
-  return timePart ? timePart.split('.')[0] : '--:--:--';
+  const parts = new Date().toISOString().split('T');
+  return (parts.length > 1 && parts[1]) ? parts[1].split('.')[0] : '00:00:00';
 });
+
+const zoomLevelLabel = computed(() => {
+    if (props.fov >= 20) return 'WIDE';
+    if (props.fov >= 10) return 'MED';
+    if (props.fov >= 5) return 'NARROW';
+    return 'ULTRA';
+});
+
 </script>
 
 <template>
   <div class="sensor-feed-container overflow-hidden bg-black relative">
-    <!-- Real Cesium Video Feed -->
-    <div ref="payloadContainer" class="absolute inset-0 w-full h-full"></div>
+    <!-- Isolated Cesium Video Feed via IFrame -->
+    <iframe 
+        ref="iframeRef" 
+        src="/pip.html" 
+        class="absolute inset-0 w-full h-full border-none"
+    ></iframe>
     
     <!-- Video Static Effect -->
     <div class="absolute inset-0 noise-overlay opacity-5 pointer-events-none"></div>
@@ -154,9 +125,18 @@ const timestamp = computed(() => {
           </div>
         </div>
         <div class="text-right">
-          <div class="flex flex-col items-end">
-            <span class="text-xs font-black">FOV: 15.0°</span>
-            <span>ZOOM: 4.0X</span>
+          <div class="flex flex-col items-end gap-1">
+            <span class="text-xs font-black">FOV: {{ fov.toFixed(1) }}° [{{ zoomLevelLabel }}]</span>
+            <!-- Zoom Controls (Pointer Events Enabled) -->
+            <div class="flex bg-black/50 border border-yellow-400/30 rounded pointer-events-auto mt-1">
+                <button @click="setZoom(20)" class="px-2 py-1 hover:bg-yellow-400/20" :class="{ 'bg-yellow-400 text-black': fov === 20 }">W</button>
+                <div class="w-px bg-yellow-400/30"></div>
+                <button @click="setZoom(10)" class="px-2 py-1 hover:bg-yellow-400/20" :class="{ 'bg-yellow-400 text-black': fov === 10 }">M</button>
+                <div class="w-px bg-yellow-400/30"></div>
+                <button @click="setZoom(5)" class="px-2 py-1 hover:bg-yellow-400/20" :class="{ 'bg-yellow-400 text-black': fov === 5 }">N</button>
+                <div class="w-px bg-yellow-400/30"></div>
+                <button @click="setZoom(1)" class="px-2 py-1 hover:bg-yellow-400/20" :class="{ 'bg-yellow-400 text-black': fov === 1 }">U</button>
+            </div>
           </div>
         </div>
       </div>
@@ -170,7 +150,7 @@ const timestamp = computed(() => {
 
 <style scoped>
 .sensor-feed-container {
-  height: 350px;
+  aspect-ratio: 16 / 9;
   width: 100%;
 }
 
@@ -190,25 +170,5 @@ const timestamp = computed(() => {
   background: rgba(20, 255, 20, 0.05);
   pointer-events: none;
   z-index: 30;
-}
-</style>
-
-<style scoped>
-.sensor-feed-container {
-  aspect-ratio: 16 / 9;
-  width: 100%;
-}
-
-.noise-overlay {
-  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.65' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
-}
-
-/* Green Color Grading for the whole container */
-.sensor-feed-container::after {
-  content: '';
-  position: absolute;
-  inset: 0;
-  background: rgba(20, 255, 20, 0.05);
-  pointer-events: none;
 }
 </style>

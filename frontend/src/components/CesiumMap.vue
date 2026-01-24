@@ -1,11 +1,12 @@
 <script setup lang="ts">
-import { onMounted, onUnmounted, ref, shallowRef, type ShallowRef } from 'vue';
+import { onMounted, onUnmounted, ref, shallowRef, watch, type ShallowRef } from 'vue';
 import * as Cesium from 'cesium';
 import "cesium/Build/Cesium/Widgets/widgets.css";
 
 import { useCesiumFlightVisualization } from '../composables/useCesiumFlightLayer';
 import { useCesiumC4ILayer } from '../composables/useCesiumC4ILayer';
 import { useScreenLabels } from '../composables/useScreenLabels'; // Import shared labels
+import { useCesiumSimulatedEntities } from '../composables/useCesiumSimulatedEntities';
 
 import MainLayout from './MainLayout.vue';
 import FlightDataOverlay from './FlightDataOverlay.vue';
@@ -27,6 +28,7 @@ const { screenLabels, initializeLabelSystem, destroyLabelSystem } = useScreenLab
 // Composables
 const { 
     currentFlightData, 
+    sensorFov,
     initializeFlightListeners, 
     stopFlightListeners 
 } = useCesiumFlightVisualization(viewer as ShallowRef<Cesium.Viewer | null>);
@@ -54,61 +56,88 @@ const {
     isEditing
 } = useCesiumC4ILayer(viewer as ShallowRef<Cesium.Viewer | null>);
 
-onMounted(async () => {
-  if (mapContainer.value) {
-    const viewerInstance = new Cesium.Viewer(mapContainer.value, {
-      terrainProvider: await Cesium.createWorldTerrainAsync(),
-      animation: false,
-      baseLayerPicker: false,
-      fullscreenButton: false,
-      geocoder: false,
-      homeButton: false,
-      infoBox: false,
-      sceneModePicker: false,
-      selectionIndicator: false,
-      timeline: false,
-      navigationHelpButton: false,
-      scene3DOnly: true,
-      useBrowserRecommendedResolution: true,
-      requestRenderMode: true, // Only render when scene changes
-      maximumRenderTimeChange: 0.033, // Match 30fps max
-      showRenderLoopErrors: false, // Disable the intrusive error popup
-    });
+const { 
+    createSimulatedEntities
+} = useCesiumSimulatedEntities();
 
-    // Disable heavy effects
-    viewerInstance.scene.postProcessStages.fxaa.enabled = false;
-    viewerInstance.scene.fog.enabled = false; // Fog is expensive
-    viewerInstance.scene.globe.showGroundAtmosphere = false; // Reduce shader complexity
-    const esri = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
-        'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
-    );
-    viewerInstance.imageryLayers.addImageryProvider(esri);
+const isSensorActive = ref(false);
 
-    // Set starting view to Ashdod (10,000 ft, Top-Down)
-    viewerInstance.camera.setView({
-        destination: Cesium.Cartesian3.fromDegrees(34.65, 31.80, 3048),
-        orientation: {
-            heading: Cesium.Math.toRadians(0),
-            pitch: Cesium.Math.toRadians(-90),
-            roll: 0.0
-        }
-    });
+// Update PiP camera based on telemetry
+watch(() => currentFlightData.value, (newVal) => {
+    if (newVal && !isSensorActive.value) {
+        isSensorActive.value = true;
+    }
+});
 
-    // CRITICAL: Enable depth test for accurate picking against terrain
-    viewerInstance.scene.globe.depthTestAgainstTerrain = true;
+onMounted(async () => {  if (mapContainer.value) {
+    try {
+        const viewerInstance = new Cesium.Viewer(mapContainer.value, {
+          terrainProvider: await Cesium.createWorldTerrainAsync(),
+          animation: false,
+          baseLayerPicker: false,
+          fullscreenButton: false,
+          geocoder: false,
+          homeButton: false,
+          infoBox: false,
+          sceneModePicker: false,
+          selectionIndicator: false,
+          timeline: false,
+          navigationHelpButton: false,
+          scene3DOnly: true,
+          useBrowserRecommendedResolution: true,
+          requestRenderMode: true, // Only render when scene changes
+          maximumRenderTimeChange: 0.033, // Match 30fps max
+          showRenderLoopErrors: false, // Disable the intrusive error popup
+          contextOptions: {
+            webgl: {
+              failIfMajorPerformanceCaveat: false, // Don't fail if performance is low
+            }
+          }
+        });
 
-    // Suppress default Cesium error popup (rethrow instead)
-    viewerInstance.scene.rethrowRenderErrors = true;
+        // Disable heavy effects
+        viewerInstance.scene.logarithmicDepthBuffer = false;
+        viewerInstance.scene.highDynamicRange = false;
+        viewerInstance.scene.postProcessStages.fxaa.enabled = false;
+        viewerInstance.scene.fog.enabled = false; // Fog is expensive
+        viewerInstance.scene.globe.showGroundAtmosphere = false; // Reduce shader complexity
+        viewerInstance.shadows = false;
+        if (viewerInstance.scene.shadowMap) viewerInstance.scene.shadowMap.enabled = false;
+        const esri = await Cesium.ArcGisMapServerImageryProvider.fromUrl(
+            'https://services.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer'
+        );
+        viewerInstance.imageryLayers.addImageryProvider(esri);
 
-    viewer.value = viewerInstance;
+        // Set starting view near the simulated entities (31.565, 34.54)
+        viewerInstance.camera.setView({
+            destination: Cesium.Cartesian3.fromDegrees(34.54, 31.56, 2000),
+            orientation: {
+                heading: Cesium.Math.toRadians(0),
+                pitch: Cesium.Math.toRadians(-45),
+                roll: 0.0
+            }
+        });
 
-    await loadNoFlyZones();
-    await loadPoints();
-    initializeFlightListeners();
-    initializeRealtimeUpdates();
-    
-    // Initialize HTML Label System
-    initializeLabelSystem(viewerInstance);
+        // CRITICAL: Enable depth test for accurate picking against terrain
+        viewerInstance.scene.globe.depthTestAgainstTerrain = true;
+
+        // Suppress default Cesium error popup (rethrow instead)
+        viewerInstance.scene.rethrowRenderErrors = true;
+
+        viewer.value = viewerInstance;
+
+        // Load all data
+        await loadNoFlyZones();
+        await loadPoints();
+        createSimulatedEntities(viewerInstance, true, '?v=main');
+        initializeFlightListeners();
+        initializeRealtimeUpdates();
+        
+        // Initialize HTML Label System
+        initializeLabelSystem(viewerInstance);
+    } catch (error) {
+        console.error("FATAL: CesiumMap initialization failed:", error);
+    }
   }
 });
 
@@ -143,14 +172,15 @@ onUnmounted(async () => {
 
     <template #video>
         <SensorFeed 
-          v-if="currentFlightData"
-          :lat="currentFlightData.lat"
-          :lng="currentFlightData.lng"
-          :altitude="currentFlightData.altitude"
-          :pitch="currentFlightData.payloadPitch"
-          :yaw="currentFlightData.payloadYaw"
-          :flightId="currentFlightData.flightId"
-          :main-viewer="viewer"
+          v-if="isSensorActive"
+          :lat="currentFlightData!.lat"
+          :lng="currentFlightData!.lng"
+          :altitude="currentFlightData!.altitude"
+          :pitch="currentFlightData!.payloadPitch"
+          :yaw="currentFlightData!.payloadYaw"
+          :flightId="currentFlightData!.flightId"
+          :fov="sensorFov"
+          @update:fov="(val) => sensorFov = val"
         />
     </template>
 

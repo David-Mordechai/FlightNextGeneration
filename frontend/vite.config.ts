@@ -5,4 +5,12 @@ import cesium from 'vite-plugin-cesium'
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [vue(), cesium()],
+  build: {
+    rollupOptions: {
+      input: {
+        main: 'index.html',
+        pip: 'pip.html'
+      }
+    }
+  }
 })

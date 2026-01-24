@@ -16,7 +16,7 @@ public class GeocodingService
         _c4iServiceUrl = configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
     }
 
-    public async Task<(double Lat, double Lng)?> GetCoordinatesAsync(string locationName)
+    public async Task<(double Lat, double Lng, double Alt)?> GetCoordinatesAsync(string locationName)
     {
         try
         {
@@ -31,20 +31,15 @@ public class GeocodingService
                 // Simple case-insensitive match
                 var match = points.FirstOrDefault(p => p.Name.Equals(locationName, StringComparison.OrdinalIgnoreCase));
                 
-                // Also check for "Home" or "Target" prefix logic if needed, but "by name" is requested.
-                // The user said "fly to home or fly to some target". 
-                // "Home" is just a name "Ashdod Home" in my example. 
-                // I'll assume exact (case-insensitive) name match for now. 
-                // If user says "Home", they might mean the point named "Home".
-                
                 if (match != null && match.Location?.Coordinates?.Length >= 2)
                 {
-                    // GeoJSON is [Lng, Lat]
+                    // GeoJSON is [Lng, Lat, Alt?]
                     var lng = match.Location.Coordinates[0];
                     var lat = match.Location.Coordinates[1];
+                    var alt = match.Location.Coordinates.Length > 2 ? match.Location.Coordinates[2] : 0.0;
                     
-                    _logger.LogInformation($"Resolved '{locationName}' to {lat}, {lng}");
-                    return (lat, lng);
+                    _logger.LogInformation($"Resolved '{locationName}' to {lat}, {lng}, {alt}");
+                    return (lat, lng, alt);
                 }
             }
 

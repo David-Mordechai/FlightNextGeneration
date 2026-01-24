@@ -56,8 +56,21 @@ Next-generation flight control and visualization system with C4I entity manageme
   - **Observability Stack:** Implemented a central observability system using **.NET Aspire Dashboard**.
     - **Tracing & Metrics:** Integrated **OpenTelemetry** across all backend services.
     - **Logs:** Centralized logging via **Serilog** with the OpenTelemetry sink.
+  - **Frontend Build Fix:** Resolved TypeScript compilation errors (`unused variables`) that were preventing the production build and rendering of the application.
 
 - **User Interface Enhancements**
+  - **Picture-in-Picture (PiP):** 
+    - Implemented `pip.html` and `PipApp.vue` for a dedicated, isolated Cesium viewer context.
+    - Integrated `SensorFeed.vue` using an `iframe` to provide WebGL context isolation for the sensor feed.
+    - Resolved browser warnings by correctly configuring `iframe` sandbox attributes.
+    - **Sensor Accuracy:** 
+        - Implemented **HPR Basis Matrix** method for Sensor Footprint to ensure 100% orientation parity with the UAV model.
+        - **Telemetry Synchronization:** Updated the projection logic to use the **exact latest telemetry coordinates** (`data.lat/lng/alt`) instead of the interpolated UAV entity position.
+        - **Range Clamping (Verified):** Implemented a hard **20km Limit** on the sensor footprint. Verified via E2E test (`tests/sensor-projection.spec.ts`) that the map projection never exceeds this distance.
+        - **Visual Parity:** 
+            - Tuned Video Fog Density (`0.00025`) to match the 20km map limit.
+            - **Hard Entity Culling:** Implemented `DistanceDisplayCondition` on simulated entities in the Video Feed. Targets are now strictly culled (not rendered) if distance > 20km, guaranteeing 100% consistency with the map projection limit even if fog is insufficient.
+        - **Elevation-Aware Targeting:** Updated Backend Flight Simulation to account for **Target Altitude** when calculating gimbal pitch. This fixes the vertical misalignment where targets on terrain appeared "above" the crosshair because the UAV was aiming at sea level.
   - **UAV Labels:** Stacked Distance and ETA vertically with 'DST:' and 'ETA:' prefixes for better readability.
   - **Mission Chat:** 
     - Implemented "AI Response Timing" display.
