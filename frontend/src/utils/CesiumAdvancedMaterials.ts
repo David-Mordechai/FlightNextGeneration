@@ -25,7 +25,7 @@ export function registerCustomMaterials(viewer: Cesium.Viewer | null, contextId:
         fabric: {
             type: polylineFlowName,
             uniforms: {
-                color: new Cesium.Color(1.0, 1.0, 1.0, 1.0),
+                flowColor: new Cesium.Color(1.0, 1.0, 1.0, 1.0),
                 image: '',
                 speed: 1,
                 time: 0
@@ -38,8 +38,8 @@ export function registerCustomMaterials(viewer: Cesium.Viewer | null, contextId:
                     float time = time * speed;
                     float s = fract(st.s - time);
                     vec4 colorImage = texture(image, vec2(s, 0.5));
-                    material.alpha = colorImage.a * color.a;
-                    material.diffuse = color.rgb * colorImage.rgb;
+                    material.alpha = colorImage.a * flowColor.a;
+                    material.diffuse = flowColor.rgb * colorImage.rgb;
                     material.emission = material.diffuse * 1.5;
                     return material;
                 }
@@ -54,7 +54,7 @@ export function registerCustomMaterials(viewer: Cesium.Viewer | null, contextId:
         fabric: {
             type: tacticalBeamName,
             uniforms: {
-                color: new Cesium.Color(0.0, 0.95, 1.0, 1.0),
+                beamColor: new Cesium.Color(0.0, 0.95, 1.0, 1.0),
                 speed: 0.3,
                 time: 0
             },
@@ -68,10 +68,10 @@ export function registerCustomMaterials(viewer: Cesium.Viewer | null, contextId:
                     float edgeMask = 1.0 - abs(st.t - 0.5) * 2.0;
                     edgeMask = pow(edgeMask, 2.0);
                     float alpha = (0.6 + shimmerMask * 0.4);
-                    alpha *= edgeMask * color.a;
-                    material.diffuse = color.rgb;
+                    alpha *= edgeMask * beamColor.a;
+                    material.diffuse = beamColor.rgb;
                     material.alpha = alpha;
-                    material.emission = color.rgb * (0.5 + shimmerMask * 0.5);
+                    material.emission = beamColor.rgb * (0.5 + shimmerMask * 0.5);
                     return material;
                 }
             `
@@ -102,7 +102,7 @@ export class PolylineFlowMaterialProperty {
 
     getValue(_time: Cesium.JulianDate, result: any) {
         if (!Cesium.defined(result)) result = {};
-        result.color = this._color;
+        result.flowColor = this._color;
         result.speed = this._speed;
         result.image = this._gradientImage;
         result.time = performance.now() / 1000.0;
@@ -145,7 +145,7 @@ export class TacticalBeamMaterialProperty {
 
     getValue(_time: Cesium.JulianDate, result: any) {
         if (!Cesium.defined(result)) result = {};
-        result.color = this._color;
+        result.beamColor = this._color;
         result.speed = this._speed;
         result.time = performance.now() / 1000.0;
         return result;

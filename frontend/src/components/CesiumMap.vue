@@ -71,8 +71,26 @@ watch(() => currentFlightData.value, (newVal) => {
 
 onMounted(async () => {  if (mapContainer.value) {
     try {
+        let terrainProvider;
+        try {
+            // Retry logic for terrain
+            for (let i = 0; i < 3; i++) {
+                try {
+                    terrainProvider = await Cesium.createWorldTerrainAsync();
+                    break;
+                } catch (e) {
+                    console.warn(`Terrain load attempt ${i + 1} failed, retrying...`);
+                    await new Promise(r => setTimeout(r, 2000));
+                }
+            }
+            if (!terrainProvider) throw new Error("Terrain unavailable");
+        } catch (e) {
+            console.warn("Falling back to default ellipsoid terrain due to network error.");
+            terrainProvider = new Cesium.EllipsoidTerrainProvider();
+        }
+
         const viewerInstance = new Cesium.Viewer(mapContainer.value, {
-          terrainProvider: await Cesium.createWorldTerrainAsync(),
+          terrainProvider: terrainProvider,
           animation: false,
           baseLayerPicker: false,
           fullscreenButton: false,

@@ -157,13 +157,7 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
                 }, false) as any,
                 height: zone.minAltitude * FEET_TO_METERS,
                 extrudedHeight: zone.maxAltitude * FEET_TO_METERS,
-                material: new Cesium.StripeMaterialProperty({
-                    evenColor: Cesium.Color.RED.withAlpha(0.25),
-                    oddColor: Cesium.Color.RED.withAlpha(0.1),
-                    repeat: 80,
-                    offset: new Cesium.CallbackProperty(() => (performance.now() / 30000) % 1, false),
-                    orientation: Cesium.StripeOrientation.VERTICAL
-                }),
+                material: new Cesium.ColorMaterialProperty(Cesium.Color.RED.withAlpha(0.25)),
                 outline: true,
                 outlineColor: Cesium.Color.RED.withAlpha(0.2),
                 outlineWidth: 1

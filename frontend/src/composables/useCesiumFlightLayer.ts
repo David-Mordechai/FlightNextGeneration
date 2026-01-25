@@ -238,11 +238,7 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                         }),
                         // Push beam into background relative to UAV
                         // @ts-ignore
-                        eyeOffset: new Cesium.Cartesian3(0, 0, 50.0),
-                        depthFailMaterial: new Cesium.PolylineGlowMaterialProperty({
-                            glowPower: 0.1,
-                            color: Cesium.Color.fromCssColorString('#00F2FF').withAlpha(0.2)
-                        })
+                        eyeOffset: new Cesium.Cartesian3(0, 0, 50.0)
                     }
                 });
                 projectedPathEntities.set(flightId, entity);
@@ -294,8 +290,8 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
                     model: {
                         // Unique URL for Main Map context to avoid sharing conflicts
                         uri: '/ORBITER4.gltf?v=main&cb=' + Math.random().toString(36).substring(7),
-                        minimumPixelSize: 128, // Floor for globe visibility
-                        maximumScale: 10000,
+                        minimumPixelSize: 48, // Reduced floor for globe visibility
+                        maximumScale: 5000, // Reduced max scale
                         // Refined: 0.1 scale at 1km (visible), 10.0 scale at 500km (huge)
                         // @ts-ignore
                         scaleByDistance: new Cesium.NearFarScalar(1.0e3, 0.1, 5.0e5, 10.0),

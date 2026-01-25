@@ -35,6 +35,17 @@ export function useVoiceComms() {
     voice.value = selectedVoice || null;
   };
 
+  // Set up voice initialization
+  if (typeof window !== 'undefined' && window.speechSynthesis) {
+    if (synth.getVoices().length > 0) {
+      initVoice();
+    } else {
+      synth.onvoiceschanged = () => initVoice();
+      // Also fallback timeout
+      setTimeout(initVoice, 1000);
+    }
+  }
+
   const processQueue = () => {
     if (isMuted.value || messageQueue.length === 0 || isSpeaking.value) return; 
     
@@ -46,9 +57,12 @@ export function useVoiceComms() {
     setTimeout(() => { attemptSpeak(text, true); }, 50); 
   };
 
-  const attemptSpeak = (text: string, allowRetry: boolean) => {
-    const utterance = new SpeechSynthesisUtterance(text);
-    if (voice.value) {
+      const attemptSpeak = (text: string, allowRetry: boolean) => {
+        if (!synth) {
+            playCloudTTS(text);
+            return;
+        }
+        const utterance = new SpeechSynthesisUtterance(text);    if (voice.value) {
         utterance.voice = voice.value;
         utterance.pitch = 0.9; 
         utterance.rate = 1.3; 
@@ -82,27 +96,41 @@ export function useVoiceComms() {
     }
   };
 
-  const playCloudTTS = async (text: string) => {
-    const a = document.createElement('audio');
-    if (a.canPlayType('audio/mpeg') === '') {
-        playDataBurst();
-        return;
-    }
-    try {
-        const safeText = encodeURIComponent(text.substring(0, 200));
-        const url = `http://localhost:5135/api/tts?text=${safeText}`;
-        const audio = new Audio(url);
-        audio.playbackRate = 1.3; 
-        audio.volume = 1.0;
-        audio.onended = () => { isSpeaking.value = false; processQueue(); };
-        audio.onerror = () => { playDataBurst(); };
-        isSpeaking.value = true;
-        await audio.play();
-    } catch (e) {
-        playDataBurst();
-    }
-  };
-
+      const playCloudTTS = async (text: string): Promise<void> => {
+        return new Promise((resolve) => {
+          const a = document.createElement('audio');
+          if (a.canPlayType('audio/mpeg') === '') {
+              playDataBurst();
+              resolve();
+              return;
+          }
+          try {
+              const safeText = encodeURIComponent(text.substring(0, 200));
+              const url = `http://localhost:5135/api/tts?text=${safeText}`;
+              const audio = new Audio(url);
+              audio.playbackRate = 1.3; 
+              audio.volume = 1.0;
+              audio.onended = () => { 
+                  isSpeaking.value = false; 
+                  processQueue(); 
+                  resolve();
+              };
+              audio.onerror = () => { 
+                  playDataBurst(); 
+                  resolve();
+              };
+              isSpeaking.value = true;
+              audio.play().catch((err) => {
+                  console.warn('Voice: Cloud TTS play failed:', err);
+                  playDataBurst();
+                  resolve();
+              });
+          } catch (e) {
+              playDataBurst();
+              resolve();
+          }
+        });
+      };
   const playDataBurst = () => {
     try {
       const AudioContext = window.AudioContext || (window as any).webkitAudioContext;
@@ -160,7 +188,7 @@ export function useVoiceComms() {
 
   const toggleMute = () => {
     isMuted.value = !isMuted.value;
-    if (isMuted.value) { synth.cancel(); messageQueue.length = 0; }
+    if (isMuted.value && synth) { synth.cancel(); messageQueue.length = 0; }
   };
 
   const speakImmediate = (text: string, maxWait?: number): Promise<void> => {
@@ -170,7 +198,7 @@ export function useVoiceComms() {
               return; 
           }
           
-          synth.cancel();
+          if (synth) synth.cancel();
 
           let hasResolved = false;
           const safeResolve = () => {
@@ -181,6 +209,10 @@ export function useVoiceComms() {
           };
 
           const doSpeak = () => {
+              if (!synth) {
+                  playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
+                  return;
+              }
               const utterance = new SpeechSynthesisUtterance(text);
               if (voice.value) {
                   utterance.voice = voice.value;
@@ -190,26 +222,33 @@ export function useVoiceComms() {
               
               utterance.onend = () => safeResolve();
               
-              utterance.onerror = (e) => {
-                  if (e.error === 'interrupted') {
-                      safeResolve();
-                      return;
-                  }
-                  if (e.error === 'not-allowed') {
-                      const playOnUnlock = () => {
-                          synth.speak(utterance);
-                          window.removeEventListener('click', playOnUnlock);
-                          window.removeEventListener('keydown', playOnUnlock);
-                      };
-                      window.addEventListener('click', playOnUnlock, { once: true });
-                      window.addEventListener('keydown', playOnUnlock, { once: true });
-                      safeResolve();
-                      return;
-                  }
-                  console.warn('Voice: Speech error:', e);
-                  safeResolve();
-              };
+                              utterance.onerror = (e) => {
+                                  if (e.error === 'interrupted') {
+                                      safeResolve();
+                                      return;
+                                  }
+                                  if (e.error === 'not-allowed') {
+                                      const playOnUnlock = () => {
+                                          synth.speak(utterance);
+                                          window.removeEventListener('click', playOnUnlock);
+                                          window.removeEventListener('keydown', playOnUnlock);
+                                      };
+                                      window.addEventListener('click', playOnUnlock, { once: true });
+                                      window.addEventListener('keydown', playOnUnlock, { once: true });
+                                      safeResolve();
+                                      return;
+                                  }
+                                  
+                                  // Expected errors that trigger fallback - no warning needed
+                                  if (e.error === 'synthesis-failed' || e.error === 'voice-unavailable') {
+                                      playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
+                                      return;
+                                  }
 
+                                  console.warn('Voice: Speech error in speakImmediate:', e);
+                                  // Fallback to backend TTS
+                                  playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
+                              };
               try {
                   synth.speak(utterance);
                   if (maxWait) {

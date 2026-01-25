@@ -19,6 +19,16 @@ const chatContainer = ref<HTMLElement | null>(null);
 const micState = ref<'initial' | 'checking' | 'ready' | 'error'>('initial');
 const isMicActive = ref(false); // Local state for instant UI feedback
 
+const stripMarkdown = (text: string) => {
+    return text
+        .replace(/(\*\*|__)(.*?)\1/g, '$2')
+        .replace(/(\*|_)(.*?)\1/g, '$2')
+        .replace(/^#+\s+/gm, '')
+        .replace(/\[([^\]]+)\]\([^\)]+\)/g, '$1')
+        .replace(/```[\s\S]*?```/g, '')
+        .replace(/`([^`]+)`/g, '$1');
+};
+
 const scrollToBottom = async () => {
   await nextTick();
   if (chatContainer.value) {
@@ -70,11 +80,11 @@ const handleMicUp = async () => {
         messages.value.push(userMsgObj);
 
         // 2. Show Processing (Transient)
-        const processingMsg: Message = { user: 'Mission Control', text: 'Processing...', isSystem: true, isTransient: true };
+        const processingMsg: Message = { user: 'Mission Control', text: `Processing ${text}...`, isSystem: true, isTransient: true };
         messages.value.push(processingMsg);
         scrollToBottom();
         
-        await speakImmediate("Processing.");
+        await speakImmediate(`Processing ${text}...`);
 
         // 3. Send to Backend
         await signalRService.sendChatMessage('Commander', text);
@@ -99,9 +109,11 @@ onMounted(async () => {
 
     // We no longer remove "Processing..." messages here to let them stay in history
     
+    const cleanedText = user === 'Mission Control' ? stripMarkdown(text) : text;
+    
     messages.value.push({
       user,
-      text,
+      text: cleanedText,
       isSystem: user === 'Mission Control',
       duration
     });
@@ -124,9 +136,9 @@ const sendMessage = async () => {
   messages.value.push({ user: 'Commander', text: userMsg, isSystem: false });
 
   // 2. Show Processing
-  messages.value.push({ user: 'Mission Control', text: 'Processing...', isSystem: true, isTransient: true });
+  messages.value.push({ user: 'Mission Control', text: `Processing ${userMsg}...`, isSystem: true, isTransient: true });
   scrollToBottom();
-  await speakImmediate("Processing.");
+  await speakImmediate(`Processing ${userMsg}...`);
   
   await signalRService.sendChatMessage('Commander', userMsg);
 };
