@@ -11,16 +11,16 @@ public interface ISpeechService
     Task<string> TranscribeAudioAsync(Stream audioStream);
 }
 
-public class SpeechService : ISpeechService, IDisposable
+public class OfflineSpeechService : ISpeechService, IDisposable
 {
-    private readonly ILogger<SpeechService> _logger;
+    private readonly ILogger<OfflineSpeechService> _logger;
     private OfflineTts? _tts;
     private WhisperFactory? _whisperFactory;
     private WhisperProcessor? _whisperProcessor;
     private readonly string _resourceDir;
     private bool _isInitialized = false;
 
-    public SpeechService(ILogger<SpeechService> logger)
+    public OfflineSpeechService(ILogger<OfflineSpeechService> logger)
     {
         _logger = logger;
         _resourceDir = Path.Combine(AppDomain.CurrentDomain.BaseDirectory, "resources");
@@ -96,7 +96,7 @@ public class SpeechService : ISpeechService, IDisposable
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Failed to initialize SpeechService");
+            _logger.LogError(ex, "Failed to initialize OfflineSpeechService");
         }
     }
 

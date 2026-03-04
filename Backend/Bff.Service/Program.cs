@@ -48,7 +48,22 @@ builder.Services.AddCors();
 builder.Services.AddHostedService<FlightSimulationWorker>();
 builder.Services.AddSingleton<FlightStateService>();
 builder.Services.AddSingleton<AiChatService>();
-builder.Services.AddSingleton<ISpeechService, SpeechService>();
+
+// Always register the offline service as a concrete type so it can be used as a fallback or directly
+builder.Services.AddSingleton<OfflineSpeechService>();
+
+var speechProvider = builder.Configuration["SpeechProvider"] ?? "Offline";
+if (speechProvider.Equals("Google", StringComparison.OrdinalIgnoreCase))
+{
+    builder.Services.AddSingleton<ISpeechService, GoogleSpeechService>();
+    Console.WriteLine("[INFO] Speech Provider: Google Cloud TTS");
+}
+else
+{
+    // Forward ISpeechService to the OfflineSpeechService instance
+    builder.Services.AddSingleton<ISpeechService>(sp => sp.GetRequiredService<OfflineSpeechService>());
+    Console.WriteLine("[INFO] Speech Provider: Offline (SherpaOnnx/Whisper)");
+}
 
 var app = builder.Build();
 

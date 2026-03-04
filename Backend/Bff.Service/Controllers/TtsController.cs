@@ -37,7 +37,16 @@ public class TtsController : ControllerBase
                  return StatusCode(500, "TTS Generation Failed");
             }
 
-            return File(audioBytes, "audio/wav");
+            // Determine content type
+            string contentType = "audio/wav";
+            if (audioBytes.Length > 3 && 
+                !(audioBytes[0] == 'R' && audioBytes[1] == 'I' && audioBytes[2] == 'F' && audioBytes[3] == 'F'))
+            {
+                // Likely MP3 or other format if not WAV
+                contentType = "audio/mpeg";
+            }
+
+            return File(audioBytes, contentType);
         }
         catch (Exception ex)
         {

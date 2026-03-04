@@ -55,6 +55,9 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
            - IF YOU DO NOT CALL `navigate_to`, THE UAV WILL NOT MOVE.
         12. SPEED/ALTITUDE:
            - If the user specifies speed (e.g. "speed 500") or altitude ("alt 6000"), call the relevant tool.
+        13. CONFIRMATION:
+           - AFTER executing tools, you MUST provide a short text confirmation.
+           - Example: "Navigating to Target 1 at 250kts."
         """;
 
     public void BuildChatService(ChatType chatType, string model, string apiKey, string providerUrl)
@@ -131,7 +134,7 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
                 .UseFunctionInvocation()
                 .UseOpenTelemetry()
                 .Build(),
-            ChatType.Ollama => new ChatClientBuilder(new OllamaApiClient(new HttpClient { BaseAddress = new Uri(providerUrl), Timeout = TimeSpan.FromMinutes(5) }, model))
+            ChatType.Ollama => new ChatClientBuilder(new OllamaApiClient(new HttpClient { BaseAddress = new Uri(providerUrl), Timeout = TimeSpan.FromMinutes(10) }, model))
                 .UseFunctionInvocation()
                 .UseOpenTelemetry()
                 .Build(),
