@@ -31,6 +31,10 @@ services:
     depends_on:
       - c4ientities
       - mcpserver.flightcontrol
+      - agents.router
+      - agents.flightcontrol
+      - agents.missioncontrol
+      - agents.payload
     ports:
       - "5135:8080"
     environment:
@@ -42,6 +46,10 @@ services:
       - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
       - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
       - McpServerUrl=http://mcpserver.flightcontrol:8080;http://mcpserver.missioncontrol:8080
+      - AgentsRouterUrl=http://agents.router:8080
+      - AgentsFlightUrl=http://agents.flightcontrol:8080
+      - AgentsMissionUrl=http://agents.missioncontrol:8080
+      - AgentsPayloadUrl=http://agents.payload:8080
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=flight-bff
     extra_hosts:
@@ -73,6 +81,17 @@ services:
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=flight-mcp-flightcontrol
 
+  mcpserver.payload:
+    image: ${DOCKER_REGISTRY-}mcpserverpayload
+    build:
+      context: .
+      dockerfile: McpServer.Payload/Dockerfile
+    environment:
+      - BffServiceUrl=http://bff.service:8080
+      - C4IServiceUrl=http://c4ientities:8080
+      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
+      - OTEL_SERVICE_NAME=flight-mcp-payload
+
   mcpserver.missioncontrol:
     image: ${DOCKER_REGISTRY-}mcpservermissioncontrol
     build:
@@ -83,6 +102,55 @@ services:
       - BffServiceUrl=http://bff.service:8080
       - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
       - OTEL_SERVICE_NAME=flight-mcp-missioncontrol
+
+  agents.router:
+    image: ${DOCKER_REGISTRY-}agentsrouter
+    build:
+      context: .
+      dockerfile: Agents.Router/Dockerfile
+    environment:
+      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
+      - OllamaModel=${OLLAMA_MODEL}
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  agents.flightcontrol:
+    image: ${DOCKER_REGISTRY-}agentsflightcontrol
+    build:
+      context: .
+      dockerfile: Agents.FlightControl/Dockerfile
+    environment:
+      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
+      - OllamaModel=${OLLAMA_MODEL}
+      - McpUrl=http://mcpserver.flightcontrol:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  agents.missioncontrol:
+    image: ${DOCKER_REGISTRY-}agentsmissioncontrol
+    build:
+      context: .
+      dockerfile: Agents.MissionControl/Dockerfile
+    environment:
+      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
+      - OllamaModel=${OLLAMA_MODEL}
+      - McpUrl=http://mcpserver.missioncontrol:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  agents.payload:
+    image: ${DOCKER_REGISTRY-}agentspayload
+    build:
+      context: .
+      dockerfile: Agents.Payload/Dockerfile
+    depends_on:
+      - mcpserver.payload
+    environment:
+      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
+      - OllamaModel=${OLLAMA_MODEL}
+      - McpUrl=http://mcpserver.payload:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   postgres_data:

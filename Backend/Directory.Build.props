@@ -1,0 +1,1 @@
+<Project><PropertyGroup><NoWarn>\$(NoWarn);SKEXP0110;SKEXP0001;SKEXP0010;NU1904</NoWarn></PropertyGroup></Project>

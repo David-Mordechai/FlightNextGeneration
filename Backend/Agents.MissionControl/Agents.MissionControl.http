@@ -1,0 +1,6 @@
+@Agents.MissionControl_HostAddress = http://localhost:5156
+
+GET {{Agents.MissionControl_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###

@@ -94,11 +94,15 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
             
             let cachedHeight = currentViewer.scene.globe.getHeight(Cesium.Cartographic.fromDegrees(point.location.coordinates[0], point.location.coordinates[1])) || 0;
             const carto = Cesium.Cartographic.fromDegrees(point.location.coordinates[0], point.location.coordinates[1]);
-            Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then((samples) => {
-                if (samples && samples[0] && samples[0].height !== undefined) {
-                    cachedHeight = samples[0].height;
-                }
-            });
+            
+            // Only sample terrain if provider has tile availability (World Terrain)
+            if (currentViewer.terrainProvider && (currentViewer.terrainProvider as any).hasTileAvailability) {
+                Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then((samples) => {
+                    if (samples && samples[0] && samples[0].height !== undefined) {
+                        cachedHeight = samples[0].height;
+                    }
+                });
+            }
 
             if (entityMap.has(point.id!)) {
                 currentViewer.entities.remove(entityMap.get(point.id!)!);

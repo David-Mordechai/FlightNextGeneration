@@ -95,11 +95,14 @@ export function useCesiumFlightVisualization(viewer: ShallowRef<Cesium.Viewer | 
 
                 // Cache height for the final destination to keep the beam stable
                 const carto = Cesium.Cartographic.fromDegrees(lastPoint.lng, lastPoint.lat);
-                Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
-                    if (samples && samples[0] && samples[0].height !== undefined) {
-                        targetHeightCache.set('final', samples[0].height);
-                    }
-                });
+                
+                if (currentViewer.terrainProvider && (currentViewer.terrainProvider as any).hasTileAvailability) {
+                    Cesium.sampleTerrainMostDetailed(currentViewer.terrainProvider, [carto]).then(samples => {
+                        if (samples && samples[0] && samples[0].height !== undefined) {
+                            targetHeightCache.set('final', samples[0].height);
+                        }
+                    });
+                }
 
                 // Convert points to Cartesian3 (3D)
                 // FIX: Lower the path by 200 meters to ensure it is always visually BELOW the UAV

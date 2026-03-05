@@ -86,13 +86,9 @@ public class Tools
                 if (!res.IsSuccessStatusCode)
                     return $"Fail to update mission to location {location}.";
 
-                // AUTO-LOCK SENSOR (Implicit PointPayload)
-                // We want the camera to look at the destination while flying
-                await PointPayload(location);
-
-                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}). Sensor locked.", location,
+                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}).", location,
                     targetCoords.Value.Lat, targetCoords.Value.Lng);
-                return $"Path clear. Flying directly to {location}. Sensor locked on target.";
+                return $"Path clear. Flying directly to {location}.";
             }
             else
             {
@@ -108,11 +104,8 @@ public class Tools
                 var execRes = await _httpClient.PostAsync("api/mission/path/execute", null);
                 if (!execRes.IsSuccessStatusCode) return "Failed to execute optimal path.";
 
-                // AUTO-LOCK SENSOR
-                await PointPayload(location);
-
-                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}. Sensor locked.", location);
-                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}. Sensor locked on target.";
+                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}.", location);
+                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}.";
             }
         }
         catch (Exception ex)
@@ -173,60 +166,4 @@ public class Tools
             return "Fail to communicate with the client";
         }
     }
-
-    [McpServerTool, Description("Direct the UAV's camera gimbal to lock onto a named ground location.")]
-    public async Task<string> PointPayload(
-        [Description("The name of the location to point the camera at."), Required] string location)
-    {
-        try
-        {
-            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
-            if (!targetCoords.HasValue) return $"Could not find coordinates for {location}.";
-
-            var json = JsonSerializer.Serialize(new
-            {
-                lat = targetCoords.Value.Lat,
-                lng = targetCoords.Value.Lng,
-                alt = targetCoords.Value.Alt
-            });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await _httpClient.PostAsync("api/mission/payload/point", content);
-
-            if (!res.IsSuccessStatusCode) return $"Fail to point camera at {location}.";
-
-            _logger.LogInformation("Camera gimbal locked to {Location} (Alt: {Alt}m).", location, targetCoords.Value.Alt);
-            return $"Camera gimbal locked to {location}. Sensor footprint updated on map.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fail to communicate with the service");
-            return "Fail to communicate with the service";
-        }
-    }
-
-    [McpServerTool, Description("Reset the UAV's camera gimbal to its default forward-looking scan mode.")]
-    public async Task<string> ResetPayload()
-    {
-        try
-        {
-            var res = await _httpClient.PostAsync("api/mission/payload/reset", null);
-            if (!res.IsSuccessStatusCode) return "Fail to reset camera gimbal.";
-
-            _logger.LogInformation("Camera gimbal reset to scan mode.");
-            return "Camera gimbal reset to default scan mode.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Fail to communicate with the service");
-            return "Fail to communicate with the service";
-        }
-    }
-
-    // [McpServerTool, Description("Move the main map camera to look at a specific named location.")]
-    // public async Task<string> LookAt(
-    //     [Description("The name of the location to focus the camera on."), Required] string location)
-    // {
-    //     // Tool disabled per user request to restrict map camera control.
-    //     return "Map camera control is disabled.";
-    // }
 }

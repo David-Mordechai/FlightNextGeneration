@@ -69,23 +69,36 @@ watch(() => currentFlightData.value, (newVal) => {
     }
 });
 
-onMounted(async () => {  if (mapContainer.value) {
+onMounted(async () => {
+  // Set Cesium Ion token if provided
+  const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+  if (ionToken) {
+    Cesium.Ion.defaultAccessToken = ionToken;
+  }
+
+  if (mapContainer.value) {
     try {
         let terrainProvider;
-        try {
-            // Retry logic for terrain
-            for (let i = 0; i < 3; i++) {
-                try {
-                    terrainProvider = await Cesium.createWorldTerrainAsync();
-                    break;
-                } catch (e) {
-                    console.warn(`Terrain load attempt ${i + 1} failed, retrying...`);
-                    await new Promise(r => setTimeout(r, 2000));
+        
+        // Only attempt to load World Terrain if a token is provided to avoid 401 console errors
+        if (ionToken) {
+            try {
+                // Retry logic for terrain
+                for (let i = 0; i < 3; i++) {
+                    try {
+                        terrainProvider = await Cesium.createWorldTerrainAsync();
+                        break;
+                    } catch (e) {
+                        console.warn(`Terrain load attempt ${i + 1} failed, retrying...`);
+                        await new Promise(r => setTimeout(r, 2000));
+                    }
                 }
+            } catch (e) {
+                console.warn("Failed to load World Terrain, falling back to ellipsoid.");
             }
-            if (!terrainProvider) throw new Error("Terrain unavailable");
-        } catch (e) {
-            console.warn("Falling back to default ellipsoid terrain due to network error.");
+        }
+
+        if (!terrainProvider) {
             terrainProvider = new Cesium.EllipsoidTerrainProvider();
         }
 

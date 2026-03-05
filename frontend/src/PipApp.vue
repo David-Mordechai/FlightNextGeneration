@@ -12,9 +12,28 @@ const FEET_TO_METERS = 0.3048;
 onMounted(async () => {
     if (!container.value) return;
 
+    // Set Cesium Ion token if provided
+    const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+    if (ionToken) {
+        Cesium.Ion.defaultAccessToken = ionToken;
+    }
+
     try {
+        let terrainProvider;
+        if (ionToken) {
+            try {
+                terrainProvider = await Cesium.createWorldTerrainAsync();
+            } catch (e) {
+                console.warn("PiP failed to load World Terrain, falling back to ellipsoid.");
+            }
+        }
+        
+        if (!terrainProvider) {
+            terrainProvider = new Cesium.EllipsoidTerrainProvider();
+        }
+
         const v = new Cesium.Viewer(container.value, {
-            terrainProvider: await Cesium.createWorldTerrainAsync(),
+            terrainProvider: terrainProvider,
             animation: false,
             baseLayerPicker: false,
             fullscreenButton: false,
