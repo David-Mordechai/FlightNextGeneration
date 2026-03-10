@@ -2,8 +2,12 @@ using C4IEntities.Data;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Point = C4IEntities.Models.Point;
+using NetTopologySuite.Geometries;
+using C4IEntities.Models;
 
 namespace C4IEntities.Controllers;
+
+public record PointDto(string Name, double Lat, double Lng, PointType Type);
 
 [Route("api/[controller]")]
 [ApiController]
@@ -16,21 +20,15 @@ public class PointsController(C4IDbContext context) : ControllerBase
     }
 
     [HttpPost]
-    public async Task<ActionResult<Point>> CreatePoint(Point point)
+    public async Task<ActionResult<Point>> CreatePoint(PointDto dto)
     {
-        // Ensure geometry has SRID 4326
-        if (point.Location != null)
+        var point = new Point
         {
-            point.Location.SRID = 4326;
-            try
-            {            
-                point.Location.Coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
-            }
-            catch (InvalidOperationException)
-            {
-                // Already 2D
-            }
-        }
+            Id = Guid.NewGuid(),
+            Name = dto.Name,
+            Type = dto.Type,
+            Location = new NetTopologySuite.Geometries.Point(dto.Lng, dto.Lat) { SRID = 4326 }
+        };
 
         context.Points.Add(point);
         await context.SaveChangesAsync();
@@ -54,28 +52,14 @@ public class PointsController(C4IDbContext context) : ControllerBase
     }
 
     [HttpPut("{id}")]
-    public async Task<IActionResult> UpdatePoint(Guid id, Point point)
+    public async Task<IActionResult> UpdatePoint(Guid id, PointDto dto)
     {
-        if (id != point.Id)
-        {
-            return BadRequest();
-        }
+        var point = await context.Points.FindAsync(id);
+        if (point == null) return NotFound();
 
-        // Ensure geometry has SRID 4326 and is 2D
-        if (point.Location != null)
-        {
-            point.Location.SRID = 4326;
-            try
-            {            
-                point.Location.Coordinate.Z = NetTopologySuite.Geometries.Coordinate.NullOrdinate;
-            }
-            catch (InvalidOperationException)
-            {
-                // Already 2D
-            }
-        }
-
-        context.Entry(point).State = EntityState.Modified;
+        point.Name = dto.Name;
+        point.Type = dto.Type;
+        point.Location = new NetTopologySuite.Geometries.Point(dto.Lng, dto.Lat) { SRID = 4326 };
 
         try
         {

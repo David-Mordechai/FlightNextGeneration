@@ -31,7 +31,7 @@ public class GeocodingService
                 // 1. Try Exact/Case-Insensitive Match
                 var match = points.FirstOrDefault(p => p.Name.Equals(locationName, StringComparison.OrdinalIgnoreCase));
                 
-                // 2. If not found, and input is a single letter or short, try "Target [Name]"
+                // 2. Try "Target [Name]"
                 if (match == null)
                 {
                     match = points.FirstOrDefault(p => p.Name.Equals($"Target {locationName}", StringComparison.OrdinalIgnoreCase));

@@ -110,7 +110,7 @@ services:
       dockerfile: Agents.Router/Dockerfile
     environment:
       - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - OllamaModel=${OLLAMA_MODEL}
+      - RouterModel=${ROUTER_MODEL:-glm-4.7-flash:q8_0}
     extra_hosts:
       - "host.docker.internal:host-gateway"
 
@@ -121,7 +121,7 @@ services:
       dockerfile: Agents.FlightControl/Dockerfile
     environment:
       - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - OllamaModel=${OLLAMA_MODEL}
+      - FlightModel=${FLIGHT_MODEL:-ministral-3:3b}
       - McpUrl=http://mcpserver.flightcontrol:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -133,7 +133,7 @@ services:
       dockerfile: Agents.MissionControl/Dockerfile
     environment:
       - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - OllamaModel=${OLLAMA_MODEL}
+      - MissionModel=${MISSION_MODEL:-ministral-3:3b}
       - McpUrl=http://mcpserver.missioncontrol:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"
@@ -147,7 +147,7 @@ services:
       - mcpserver.payload
     environment:
       - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - OllamaModel=${OLLAMA_MODEL}
+      - PayloadModel=${PAYLOAD_MODEL:-ministral-3:3b}
       - McpUrl=http://mcpserver.payload:8080
     extra_hosts:
       - "host.docker.internal:host-gateway"

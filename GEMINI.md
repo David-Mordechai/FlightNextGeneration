@@ -1,7 +1,20 @@
 # FlightNextGeneration - Project Status
 
+## Agent Development Mandates
+- **Plan-then-Approve Workflow:** Before performing any code modifications (Directives), the agent MUST first research the issue, formulate a technical strategy, and present a detailed plan to the user. Implementation may ONLY proceed after explicit user approval of the proposed plan.
+- **Inquiry vs. Directive:** All requests are treated as Inquiries (research/analysis) by default. The agent shall not initiate changes based on observations or bugs until a Directive is issued and the corresponding plan is approved.
+
 ## Project Overview
 Next-generation flight control and visualization system with C4I entity management and AI-driven mission planning.
+
+## Scalable Agent Architecture
+The project has transitioned to a highly scalable, multi-tiered agent architecture (`Backend/Agents.*` projects) to handle complex routing and intent delegation with **decoupled model reasoning**:
+- **Tier 1 - Orchestration & Routing:** A **Router Agent** analyzes user intent and delegates tasks. It utilizes an **Agent & Tool Registry (Vector DB / RAG)** to semantically query capabilities. Currently powered by **GLM-4 (30B)** for high-precision decision making.
+- **Tier 2 - Specialized Agent Layer:** Requests are routed to domain-specific kernels, now optimized for speed using **Ministral-3 (3B)**:
+  - **Mission Control Agent:** Handles planning, map zones, and operational points.
+  - **Flight Control Agent:** Manages UAV navigation, altitude, and speed telemetry.
+  - **Payload Agent:** Controls cameras, sensors, and gimbal locking.
+- **Tier 3 - Dynamic Tool & MCP Execution:** A **Dynamic Tool Injector** fetches Top-K schemas just-in-time, allowing agents to execute requests directly against targeted MCP servers.
 
 ## Features Implemented
 - **Voice Control & Co-pilot (Operation "Voice Command")**
@@ -10,88 +23,65 @@ Next-generation flight control and visualization system with C4I entity manageme
     - **Wake Word:** First-click interaction performs a backend AI readiness check.
     - **Greeting:** "I am here to assist" (Audio + Text).
     - **Interaction Flow:** Hold-to-Speak -> "How can I help?" -> **Tactical Chirp** -> Record.
-    - **Feedback:** "Processing..." transient message appears instantly and is replaced by the real response.
+    - **Feedback:** "Processing [text]..." transient message appears instantly and is replaced by the real response.
     - **Visuals:** Mic button pulses red and input placeholder changes to "RECORDING..." instantly.
   - **Robustness:**
     - **Audio Unlock:** Auto-resumes AudioContext on first user interaction to comply with browser autoplay policies.
     - **Resampling:** Implemented cross-platform linear interpolation to ensure 16kHz audio compliance for Whisper.
-    - **State Machine:** Robust "Idle -> Preamble -> Initializing -> Recording" logic with cancellation support.
+    - **State Machine:** Robust "Idle -> Checking -> Ready -> Recording" logic with cancellation support.
 
 - **Visual Overhaul (Operation "Satellite Command")**
   - **Map:** Switched to **Esri World Imagery** for high-resolution realistic satellite view.
   - **Markers (Cesium 3D Upgrade):** 
-    - **Home:** Cyan **"Scanner Base"** featuring a semi-transparent cylinder with a rotating holographic ring.
-    - **Target:** Red **"Pulsating Beacon"** with dynamic height animation and dashed tactical rings.
+    - **Home:** High-visibility **Antenna Icon** (`antena.png`) with glassmorphism label.
+    - **Target:** Tactical **Target Beacon** (`target.Png`) with ground-clamped billboard.
   - **Flight Path:**
-    - **Optimal Path:** Implemented **"Digital Flow" Material**, a custom shader effect with flowing green data gradients.
-    - **Projected Path:** Tactical Dashed Line (Blue) for intent visualization.
-    - **UAV Trail:** Added a cyan glowing ribbon trail that follows the aircraft.
+    - **Optimal Path (Green):** Semi-transparent emerald line representing the calculated safe route.
+    - **Projected Path (Cyan):** **"Digital Pulse Beam"**, a custom shader effect (`TacticalBeamMaterialProperty`) indicating current intent.
+    - **UAV Trail:** Integrated into the digital pulse beam logic for directionality.
   - **No-Fly Zones:**
-    - **Style:** **"Force Field"** effect using grid materials with a glowing neon rim at max altitude.
+    - **Style:** Semi-transparent red volumes with thin outlines, providing clear hazard awareness without obscuring terrain.
   - **Labels:**
-    - **Style:** "Glassmorphism" Tactical Tags (Semi-transparent dark slate, blur effect, cyan accent).
-    - **Behavior:** Dynamic scaling (shrink on zoom out) and Z-ordering (always below UAV/Icons) to prevent clutter.
+    - **Style:** "Glassmorphism" Tactical Tags (Semi-transparent slate, blur effect, cyan accents).
+    - **Dynamic Data:** UAV labels feature stacked **DTG** (Distance to Go) and **ETA** vertically.
+    - **Scaling:** Adaptive pixel offsets and scaling based on distance to prevent clutter.
 
 - **Advanced Flight Simulation**
-  - **Precision Navigation:** Reduced waypoint arrival threshold from 111m to **11m** to prevent "corner cutting".
-  - **Drift Prevention:** Implemented "Snap-to-Waypoint" logic to ensure every flight leg starts from the precise geometric origin.
-  - **Tangent Orbit Entry:** UAV now enters orbit **immediately upon reaching the perimeter** (1km out) instead of flying to the center and "jumping", creating a realistic spiral entry visual.
-  - **Safety Buffer:** Increased No-Fly Zone avoidance buffer to **55m** to guarantee clearance even with minor tracking errors.
+  - **Precision Navigation:** Reduced waypoint arrival threshold to **11m** for precise cornering.
+  - **Orbit Entry:** UAV enters orbit immediately upon reaching the 3km perimeter, avoiding center-point "jumps".
+  - **Dynamic Physics:** Smooth interpolation of speed and altitude during mission changes.
 
 - **AI Mission Planning**
-  - **Simplified Workflow:** AI uses a single "NavigateTo" tool that handles route calculation and sensor locking automatically.
-  - **Automated Sensor:** `NavigateTo` tool automatically commands `PointPayload` to lock the camera on the destination.
-  - **Strict Response Style:** AI instructed to respond with a single, concise sentence (No markdown).
-  - **Optimal Pathfinding:** Calculates shortest routes avoiding No-Fly Zones.
-  - **Natural Language Control:** Navigate to named points via AI.
-  - **Strict Data Freshness:** AI instructed to always fetch fresh entity lists from DB, never relying on conversation history cache.
-
-- **C4I Entities & Points**
-  - **Points:** Home (Start) and Target (End) locations.
-  - **No-Fly Zones:** Geospatial persistence for polygons and rectangles.
-  - **Real-Time Sync:** Instant map updates via SignalR when AI modifies entities.
-
-- **Infrastructure**
-  - **Docker Compose:** Exposed ports for `flightcontrol` and `c4ientities` services.
-  - **Observability Stack:** Implemented a central observability system using **.NET Aspire Dashboard**.
-    - **Tracing & Metrics:** Integrated **OpenTelemetry** across all backend services.
-    - **Logs:** Centralized logging via **Serilog** with the OpenTelemetry sink.
-  - **Frontend Build Fix:** Resolved TypeScript compilation errors (`unused variables`) that were preventing the production build and rendering of the application.
+  - **Automated Sensor:** Flight system automatically locks the camera on the target during transit if no manual lock is set.
+  - **Tooling:** AI uses `NavigateTo` (Optimal pathfinding), `PointPayload` (Manual camera lock), and `ChangeSpeed/Altitude` tools.
+  - **Strict Response Style:** AI responds with single, concise sentences (Markdown stripped for TTS).
+  - **Data Freshness:** AI fetches fresh entity lists from DB for every operation.
 
 - **User Interface Enhancements**
   - **Picture-in-Picture (PiP):** 
-    - Implemented `pip.html` and `PipApp.vue` for a dedicated, isolated Cesium viewer context.
-    - Integrated `SensorFeed.vue` using an `iframe` to provide WebGL context isolation for the sensor feed.
-    - Resolved browser warnings by correctly configuring `iframe` sandbox attributes.
+    - Isolated Cesium viewer context (`pip.html`) for the sensor feed to prevent WebGL context conflicts.
+    - **HUD:** Tactical overlay with REC status, coordinates, altitude, pitch/yaw, and zoom controls.
     - **Sensor Accuracy:** 
-        - Implemented **HPR Basis Matrix** method for Sensor Footprint to ensure 100% orientation parity with the UAV model.
-        - **Telemetry Synchronization:** Updated the projection logic to use the **exact latest telemetry coordinates** (`data.lat/lng/alt`) instead of the interpolated UAV entity position.
-        - **Range Clamping (Verified):** Implemented a hard **20km Limit** on the sensor footprint. Verified via E2E test (`tests/sensor-projection.spec.ts`) that the map projection never exceeds this distance.
-        - **Visual Parity:** 
-            - Tuned Video Fog Density (`0.00025`) to match the 20km map limit.
-            - **Hard Entity Culling:** Implemented `DistanceDisplayCondition` on simulated entities in the Video Feed. Targets are now strictly culled (not rendered) if distance > 20km, guaranteeing 100% consistency with the map projection limit even if fog is insufficient.
-        - **Elevation-Aware Targeting:** Updated Backend Flight Simulation to account for **Target Altitude** when calculating gimbal pitch. This fixes the vertical misalignment where targets on terrain appeared "above" the crosshair because the UAV was aiming at sea level.
-  - **UAV Labels:** Stacked Distance and ETA vertically with 'DST:' and 'ETA:' prefixes for better readability.
+        - **HPR Basis Matrix:** 100% orientation parity between UAV model and camera view.
+        - **Range Clamping:** Hard **20km Limit** on sensor footprint and entity rendering.
+        - **Visual Parity:** Tuned Video Fog (`0.00025`) matching the 20km projection limit.
   - **Mission Chat:** 
-    - Implemented "AI Response Timing" display.
-    - Increased font sizes and improved text visibility for better readability.
-    - Scaled "Mission Control" title to match chat content.
-  - **UAV Visualization:** 
-    - Increased UAV icon size to **80px** for tactical clarity.
-    - **Projected Path (Blue):** Enhanced with a thicker (3px) solid neon line and a high-energy pulse animation to indicate direction/intent without dashing.
+    - **Performance Metrics:** Integrated "AI Response Timing" (e.g., "1.45s") next to messages.
+    - **Optimistic UI:** Instant "Processing..." feedback and user message rendering.
 
-- **Advanced Observability & AI Tracing**
-  - **AI Thought Process:** Integrated `Microsoft.Extensions.AI.OpenTelemetry` to capture detailed traces of AI completions, tool invocations (MCP), and results.
-  - **Distributed Tracing:** Full request lifecycle visibility from User Chat -> AI Logic -> MCP Tool Call -> Database (EF Core) -> Final Response.
+- **Observability & AI Tracing**
+  - **Distributed Tracing:** Full request lifecycle visibility via **OpenTelemetry**.
+  - **AI Thought Process:** Integrated `Microsoft.Extensions.AI` tracing to capture tool invocations and LLM results.
+  - **Centralized Dashboard:** .NET Aspire Dashboard for monitoring traces, metrics, and logs.
 
 ## Technical Details
-- **Backend:** .NET 10, Entity Framework Core, Npgsql (PostGIS), NetTopologySuite.
-- **Speech:** SherpaOnnx (TTS), Whisper.net (STT), AudioWorklet (Frontend Capture).
-- **Frontend:** Vue 3, Vite, Tailwind CSS, DaisyUI, Leaflet, SignalR.
-- **Visuals:** Custom CSS animations, SVG-in-DivIcon markers, dynamic Z-indexing.
+- **Backend:** .NET 10, Multi-Tiered Agent Architecture (Semantic Routing, Vector DB), Entity Framework Core, Npgsql (PostGIS), Model Context Protocol (MCP).
+- **Speech:** SherpaOnnx (TTS), Whisper.net (STT).
+- **Frontend:** Vue 3, CesiumJS, Tailwind CSS, SignalR.
 
 ## Key Files
-- `Backend/Bff.Service/Services/SpeechService.cs`: Offline TTS/STT logic with resampling.
-- `frontend/src/composables/useVoiceComms.ts`: AudioWorklet recording, beep sequencing, and state management.
-- `frontend/src/components/MissionChat.vue`: Chat UI with optimistic updates and readiness checks.
-- `Backend/McpServer.FlightControl/Tools.cs`: Navigation logic with auto-sensor lock.
+- `Backend/Agents.Router/Program.cs`: Core orchestration and intent delegation logic.
+- `Backend/Bff.Service/Services/OfflineSpeechService.cs`: Offline TTS/STT engine.
+- `frontend/src/composables/useCesiumFlightLayer.ts`: 3D flight visualization & sensor footprint.
+- `frontend/src/utils/CesiumAdvancedMaterials.ts`: Custom shader materials (Digital Pulse Beam).
+- `Backend/McpServer.FlightControl/Tools.cs`: Navigation & Pathfinding integration.

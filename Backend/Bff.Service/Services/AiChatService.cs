@@ -34,7 +34,11 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
             if (!routerRes.IsSuccessStatusCode) return "Router failed to assign agent.";
             
             var routerData = await routerRes.Content.ReadFromJsonAsync<JsonElement>();
-            var targets = routerData.GetProperty("targets").EnumerateArray().Select(x => x.GetString()).ToList();
+            var targets = routerData.GetProperty("targets").EnumerateArray()
+                .Select(x => x.GetString())
+                .Where(x => !string.IsNullOrWhiteSpace(x))
+                .Distinct() // Deduplicate
+                .ToList();
             
             if (targets.Count == 0) return "No agents assigned to this request.";
 
@@ -73,8 +77,16 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 
             await Task.WhenAll(agentTasks);
 
+            // Intelligent Merging: If we have at least one success, ignore "Error" or "Action failed" messages from specialized agents
+            var filteredResponses = responses.Where(r => !string.IsNullOrWhiteSpace(r)).ToList();
+            var successfulResponses = filteredResponses.Where(r => 
+                !r.Contains("Error:", StringComparison.OrdinalIgnoreCase) && 
+                !r.Contains("Action failed", StringComparison.OrdinalIgnoreCase)).ToList();
+            
+            var finalResponses = (successfulResponses.Count > 0) ? successfulResponses : filteredResponses;
+
             // Deduplicate and join responses
-            var finalResult = string.Join(". ", responses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
+            var finalResult = string.Join(". ", finalResponses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
             
             return string.IsNullOrWhiteSpace(finalResult) || finalResult == "." ? "Request processed." : finalResult;
         }

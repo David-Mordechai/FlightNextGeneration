@@ -9,7 +9,7 @@ builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
 var ollamaOpenAiEndpoint = builder.Configuration["OllamaOpenAiEndpoint"] ?? "http://localhost:11434/v1";
-var modelId = builder.Configuration["OllamaModel"] ?? "llama3.2";
+var modelId = builder.Configuration["RouterModel"] ?? builder.Configuration["OllamaModel"] ?? "llama3.2";
 
 var app = builder.Build();
 
@@ -29,27 +29,31 @@ app.MapPost("/route", async ([FromBody] string message) =>
     var response = await chatSvc.GetChatMessageContentAsync(history);
     var content = response.Content?.Trim() ?? "";
     
-    List<string> targets;
-    try 
+    Console.WriteLine($"[RouterAgent] Raw Classification: {content}");
+
+    var targets = new List<string>();
+    
+    // Pure Model-Driven Intent Routing
+    if (content.Contains("[") && content.Contains("]"))
     {
-        targets = JsonSerializer.Deserialize<List<string>>(content) ?? new List<string>();
-    }
-    catch 
-    {
-        // Fallback to simple logic if LLM is chatty
-        targets = new List<string>();
-        if (content.Contains("FlightControl")) targets.Add("FlightControl");
-        if (content.Contains("Payload")) targets.Add("Payload");
-        if (content.Contains("MissionControl")) targets.Add("MissionControl");
-        
-        if (targets.Count == 0)
+        try 
         {
-            var heuristic = AgentRegistry.ResolveAgent(message);
-            targets.Add(heuristic);
-            if (heuristic == "FlightControl" && (message.Contains("fly") || message.Contains("home")))
-                targets.Add("Payload");
+            var start = content.IndexOf("[");
+            var end = content.LastIndexOf("]") + 1;
+            var json = content.Substring(start, end - start);
+            targets = JsonSerializer.Deserialize<List<string>>(json) ?? new List<string>();
         }
+        catch { }
     }
+
+    if (targets.Count == 0)
+    {
+        if (content.Contains("FlightControl", StringComparison.OrdinalIgnoreCase)) targets.Add("FlightControl");
+        if (content.Contains("MissionControl", StringComparison.OrdinalIgnoreCase)) targets.Add("MissionControl");
+        if (content.Contains("Payload", StringComparison.OrdinalIgnoreCase)) targets.Add("Payload");
+    }
+
+    Console.WriteLine($"[RouterAgent] Final Targets: {string.Join(", ", targets)}");
 
     return Results.Ok(new { Targets = targets });
 });

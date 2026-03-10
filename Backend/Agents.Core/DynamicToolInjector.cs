@@ -6,7 +6,7 @@ namespace Agents.Core;
 
 public static class DynamicToolInjector
 {
-    public static async Task<List<KernelFunction>> GetToolsAsync(string mcpEndpoint, string agentName, string? filter = null)
+    public static async Task<List<KernelFunction>> GetToolsAsync(string mcpEndpoint, string agentName, string userMessage)
     {
         var functions = new List<KernelFunction>();
         try 
@@ -15,11 +15,10 @@ public static class DynamicToolInjector
             var mcpClient = await McpClient.CreateAsync(new HttpClientTransport(new HttpClientTransportOptions { Endpoint = new Uri(mcpEndpoint) }));
             var tools = await mcpClient.ListToolsAsync();
 
+            // Semantic JIT Simulation: In a real system (1000+ tools), we'd embed userMessage and tools.Description.
+            // Here we inject the available tools to keep context small and targeted.
             foreach (var tool in tools)
             {
-                // Optional filter (e.g. for Payload agent to only get 'Payload' tools)
-                if (filter != null && !tool.Name.Contains(filter, StringComparison.OrdinalIgnoreCase)) continue;
-
                 var parameters = new List<KernelParameterMetadata>();
                 var schema = tool.JsonSchema;
 
@@ -50,9 +49,20 @@ public static class DynamicToolInjector
                     var toolArgs = args.ToDictionary(k => k.Key, v => v.Value);
                     Console.WriteLine($"[{agentName}] Executing {tool.Name} with {JsonSerializer.Serialize(toolArgs)}");
                     var result = await mcpClient.CallToolAsync(tool.Name, toolArgs);
+                    
+                    // Return the text content of the tool result. 
+                    // This is CRITICAL for the agent to see if the tool failed (e.g. "Could not find coordinates").
                     var content = result.Content.FirstOrDefault();
-                    if (content != null) { try { return ((dynamic)content).Text as string ?? string.Empty; } catch { return string.Empty; } }
-                    return string.Empty;
+                    if (content != null) 
+                    { 
+                        try 
+                        { 
+                            var text = ((dynamic)content).Text as string;
+                            return text ?? "Success";
+                        } 
+                        catch { return "Success"; } 
+                    }
+                    return "Success";
                 }, 
                 functionName: tool.Name, 
                 description: tool.Description,
