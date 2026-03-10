@@ -1,21 +1,20 @@
-using ModelContextProtocol.Server;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
+using Microsoft.SemanticKernel;
 
-namespace McpServer.MissionControl;
+namespace Agents.MissionControl;
 
-[McpServerToolType]
-public class Tools
+public class MissionTools
 {
-    private readonly ILogger<Tools> _logger;
+    private readonly ILogger<MissionTools> _logger;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly IConfiguration _configuration;
     private readonly string _c4iUrl;
     private readonly string _bffUrl;
 
-    public Tools(ILogger<Tools> logger, IHttpClientFactory httpClientFactory, IConfiguration configuration)
+    public MissionTools(ILogger<MissionTools> logger, IHttpClientFactory httpClientFactory, IConfiguration configuration)
     {
         _logger = logger;
         _httpClientFactory = httpClientFactory;
@@ -40,7 +39,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Define a new persistent operational point (Home or Target) on the map. REQUIRES explicit Latitude and Longitude from the user. Do NOT use this tool if the user did not provide coordinates.")]
+    [KernelFunction, Description("Define a new persistent operational point (Home or Target) on the map. REQUIRES explicit Latitude and Longitude from the user. Do NOT use this tool if the user did not provide coordinates.")]
     public async Task<string> CreatePoint(
         [Description("Name of the point (e.g., 'Alpha', 'Base')."), Required] string name,
         [Description("Type of point: 'Home' or 'Target'."), Required] string type,
@@ -86,7 +85,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("List all active points.")]
+    [KernelFunction, Description("List all active points.")]
     public async Task<string> ListPoints()
     {
         try
@@ -105,7 +104,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Delete ALL active points.")]
+    [KernelFunction, Description("Delete ALL active points.")]
     public async Task<string> DeleteAllPoints()
     {
         try
@@ -147,7 +146,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Delete a point by its name.")]
+    [KernelFunction, Description("Delete a point by its name.")]
     public async Task<string> DeletePointByName(
         [Description("The name of the point to delete."), Required] string name)
     {
@@ -187,7 +186,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Define a new rectangular No-Fly Zone on the map. This tool is for map management only.")]
+    [KernelFunction, Description("Define a new rectangular No-Fly Zone on the map. This tool is for map management only.")]
     public async Task<string> CreateRectangleZone(
         [Description("Name of the zone."), Required] string name,
         [Description("Minimum latitude."), Required] double minLat,
@@ -243,7 +242,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Define a new polygon No-Fly Zone on the map from a list of coordinates. This tool is for map management only.")]
+    [KernelFunction, Description("Define a new polygon No-Fly Zone on the map from a list of coordinates. This tool is for map management only.")]
     public async Task<string> CreatePolygonZone(
         [Description("Name of the zone."), Required] string name,
         [Description("Coordinates as an array of [lng, lat] pairs. Example: [[34.1, 31.1], [34.2, 31.1], [34.2, 31.2], [34.1, 31.1]]"), Required] double[][] coordinates,
@@ -298,7 +297,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("List all active No-Fly Zones.")]
+    [KernelFunction, Description("List all active No-Fly Zones.")]
     public async Task<string> ListNoFlyZones()
     {
         try
@@ -317,7 +316,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Delete ALL active No-Fly Zones.")]
+    [KernelFunction, Description("Delete ALL active No-Fly Zones.")]
     public async Task<string> DeleteAllNoFlyZones()
     {
         try
@@ -359,7 +358,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Delete a No-Fly Zone by its name.")]
+    [KernelFunction, Description("Delete a No-Fly Zone by its name.")]
     public async Task<string> DeleteNoFlyZoneByName(
         [Description("The name of the zone to delete."), Required] string name)
     {

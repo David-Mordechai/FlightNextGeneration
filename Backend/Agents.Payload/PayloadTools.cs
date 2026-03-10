@@ -1,20 +1,19 @@
-using ModelContextProtocol.Server;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
+using Microsoft.SemanticKernel;
 
-namespace McpServer.Payload;
+namespace Agents.Payload;
 
-[McpServerToolType]
-public class Tools
+public class PayloadTools
 {
-    private readonly ILogger<Tools> _logger;
+    private readonly ILogger<PayloadTools> _logger;
     private readonly GeocodingService _geocodingService;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
 
-    public Tools(ILogger<Tools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
+    public PayloadTools(ILogger<PayloadTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
     {
         _logger = logger;
         _geocodingService = geocodingService;
@@ -24,7 +23,7 @@ public class Tools
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
-    [McpServerTool, Description("Direct the UAV's camera gimbal to lock onto a named ground location.")]
+    [KernelFunction, Description("Direct the UAV's camera gimbal to lock onto a named ground location.")]
     public async Task<string> PointPayload(
         [Description("The name of the location to point the camera at."), Required] string location)
     {
@@ -54,7 +53,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Reset the UAV's camera gimbal to its default forward-looking scan mode.")]
+    [KernelFunction, Description("Reset the UAV's camera gimbal to its default forward-looking scan mode.")]
     public async Task<string> ResetPayload()
     {
         try

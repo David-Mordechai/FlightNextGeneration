@@ -1,7 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
-using Agents.Core;
 using System.Text.Json;
 
 var builder = WebApplication.CreateBuilder(args);

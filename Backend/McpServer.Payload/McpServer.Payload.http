@@ -1,6 +1,0 @@
-@McpServer.Payload_HostAddress = http://localhost:5117
-
-GET {{McpServer.Payload_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

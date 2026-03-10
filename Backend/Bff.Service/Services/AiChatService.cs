@@ -77,16 +77,23 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 
             await Task.WhenAll(agentTasks);
 
-            // Intelligent Merging: If we have at least one success, ignore "Error" or "Action failed" messages from specialized agents
+            // Intelligent Merging: Filter out errors if we have successes
             var filteredResponses = responses.Where(r => !string.IsNullOrWhiteSpace(r)).ToList();
             var successfulResponses = filteredResponses.Where(r => 
                 !r.Contains("Error:", StringComparison.OrdinalIgnoreCase) && 
                 !r.Contains("Action failed", StringComparison.OrdinalIgnoreCase)).ToList();
             
-            var finalResponses = (successfulResponses.Count > 0) ? successfulResponses : filteredResponses;
+            var baseResponses = (successfulResponses.Count > 0) ? successfulResponses : filteredResponses;
+
+            // If we have specific flight/payload responses, we can potentially ignore generic mission control noise
+            if (baseResponses.Any(r => r.StartsWith("Executed:", StringComparison.OrdinalIgnoreCase) || r.Contains("locked", StringComparison.OrdinalIgnoreCase)))
+            {
+                // If we have real actions, remove the generic "Entities updated" noise
+                baseResponses = baseResponses.Where(r => !r.Equals("Entities updated.", StringComparison.OrdinalIgnoreCase)).ToList();
+            }
 
             // Deduplicate and join responses
-            var finalResult = string.Join(". ", finalResponses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
+            var finalResult = string.Join(". ", baseResponses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
             
             return string.IsNullOrWhiteSpace(finalResult) || finalResult == "." ? "Request processed." : finalResult;
         }

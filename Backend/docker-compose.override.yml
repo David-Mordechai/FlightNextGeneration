@@ -5,8 +5,6 @@ services:
       - ASPNETCORE_HTTP_PORTS=8080
     ports:
       - "5135:8080"
-    volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
 
   c4ientities:
     environment:
@@ -14,14 +12,23 @@ services:
       - ASPNETCORE_HTTP_PORTS=8080
     ports:
       - "5293:8080"
-    volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
 
-  mcpserver.flightcontrol:
+  agents.router:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ASPNETCORE_HTTP_PORTS=8080
-    ports:
-      - "5116:8080"
-    volumes:
-      - ${APPDATA}/ASP.NET/Https:/home/app/.aspnet/https:ro
+
+  agents.flightcontrol:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+
+  agents.missioncontrol:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080
+
+  agents.payload:
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Development
+      - ASPNETCORE_HTTP_PORTS=8080

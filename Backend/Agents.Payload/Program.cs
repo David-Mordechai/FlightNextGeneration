@@ -2,37 +2,36 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
-using Agents.Core;
+using Agents.Payload;
 using System.Text.RegularExpressions;
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddOpenApi();
 
+// Register Dependencies for native tools
+builder.Services.AddHttpClient();
+builder.Services.AddSingleton<GeocodingService>();
+builder.Services.AddSingleton<PayloadTools>();
+
 var ollamaOpenAiEndpoint = builder.Configuration["OllamaOpenAiEndpoint"] ?? "http://localhost:11434/v1";
 var modelId = builder.Configuration["PayloadModel"] ?? builder.Configuration["OllamaModel"] ?? "llama3.2";
-var mcpEndpoint = builder.Configuration["McpUrl"] ?? "http://mcpserver.payload:8080";
 
 var app = builder.Build();
 
-app.MapPost("/execute", async ([FromBody] string message) =>
+app.MapPost("/execute", async ([FromBody] string message, PayloadTools payloadTools) =>
 {
     Console.WriteLine($"[PayloadAgent] Received Message: {message}");
     var kernelBuilder = Kernel.CreateBuilder();
     kernelBuilder.AddOpenAIChatCompletion(modelId, endpoint: new Uri(ollamaOpenAiEndpoint), apiKey: "ignore");
 
-    // TIER 3: DYNAMIC TOOL INJECTION
-    var functions = await DynamicToolInjector.GetToolsAsync(mcpEndpoint, "PayloadAgent", message);
-    if (functions.Count > 0)
-    {
-        kernelBuilder.Plugins.AddFromFunctions("Tools", functions);
-    }
+    // Register Native Tools
+    kernelBuilder.Plugins.AddFromObject(payloadTools, "Tools");
 
     var kernel = kernelBuilder.Build();
     var chatSvc = kernel.GetRequiredService<IChatCompletionService>();
     var history = new ChatHistory();
     
-    var toolNames = string.Join(", ", functions.Select(f => f.Name));
     history.AddSystemMessage("You are the Payload Agent. Available Tools: [PointPayload, ResetPayload].\n" +
                            "MISSION: Lock the camera gimbal on any location mentioned in the user's flight command.\n" +
                            "THINKING PROCESS:\n" +
@@ -40,7 +39,7 @@ app.MapPost("/execute", async ([FromBody] string message) =>
                            "2. If yes, you MUST call PointPayload for that location.\n" +
                            "3. If no location, check if 'reset' is mentioned. If yes, call ResetPayload.\n" +
                            "4. Otherwise, return an empty string.\n" +
-                           "CONFIRMATION: After calling a tool, respond ONLY with 'Sensor locked: [Location]'.");
+                           "CONFIRMATION: After calling a tool, respond ONLY with: 'Camera locked: [Location]'. Example: 'Camera locked: Home'.");
     history.AddUserMessage(message);
 
     var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() };
@@ -59,6 +58,11 @@ app.MapPost("/execute", async ([FromBody] string message) =>
     if (toolErrors.Count > 0)
     {
         content = "Action failed: Sensor could not be locked.";
+    }
+    else if (hasToolCalls)
+    {
+        // HARDENED: Return ONLY technical confirmation
+        content = "Sensor locked.";
     }
     else if (!hasToolCalls)
     {

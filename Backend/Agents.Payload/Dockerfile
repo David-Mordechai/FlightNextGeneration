@@ -5,7 +5,6 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["Agents.Payload/Agents.Payload.csproj", "Agents.Payload/"]
-COPY ["Agents.Core/Agents.Core.csproj", "Agents.Core/"]
 RUN dotnet restore "Agents.Payload/Agents.Payload.csproj"
 COPY . .
 WORKDIR "/src/Agents.Payload"

@@ -1,20 +1,19 @@
-using ModelContextProtocol.Server;
 using System.ComponentModel;
 using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
+using Microsoft.SemanticKernel;
 
-namespace McpServer.FlightControl;
+namespace Agents.FlightControl;
 
-[McpServerToolType]
-public class Tools
+public class FlightTools
 {
-    private readonly ILogger<Tools> _logger;
+    private readonly ILogger<FlightTools> _logger;
     private readonly GeocodingService _geocodingService;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
 
-    public Tools(ILogger<Tools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
+    public FlightTools(ILogger<FlightTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
     {
         _logger = logger;
         _geocodingService = geocodingService;
@@ -24,7 +23,7 @@ public class Tools
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
-    [McpServerTool, Description("Command the UAV to fly to an EXISTING named point on the map. This tool is for flight control. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
+    [KernelFunction, Description("Command the UAV to fly to an EXISTING named point on the map. This tool is for flight control. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
     public async Task<string> NavigateTo(
         [Description("The name of an already defined point to fly to (e.g., 'Home', 'Target Alpha')."), Required] 
         string location)
@@ -115,7 +114,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Change the UAV's target speed in knots.")]
+    [KernelFunction, Description("Change the UAV's target speed in knots.")]
     public async Task<string> ChangeSpeed(
         [Description("Target speed in knots (e.g., 150)."), Required]int speed)
     {
@@ -141,7 +140,7 @@ public class Tools
         }
     }
 
-    [McpServerTool, Description("Change the UAV's target altitude in feet.")]
+    [KernelFunction, Description("Change the UAV's target altitude in feet.")]
     public async Task<string> ChangeAltitude(
         [Description("Target altitude in feet (e.g., 5000)."), Required] int altitude)
     {

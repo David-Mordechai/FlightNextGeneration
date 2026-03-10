@@ -5,7 +5,6 @@ EXPOSE 8080
 FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
 WORKDIR /src
 COPY ["Agents.Router/Agents.Router.csproj", "Agents.Router/"]
-COPY ["Agents.Core/Agents.Core.csproj", "Agents.Core/"]
 RUN dotnet restore "Agents.Router/Agents.Router.csproj"
 COPY . .
 WORKDIR "/src/Agents.Router"
