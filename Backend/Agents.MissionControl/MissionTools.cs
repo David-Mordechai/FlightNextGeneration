@@ -51,36 +51,262 @@ public class MissionTools
             using var client = _httpClientFactory.CreateClient();
             client.BaseAddress = new Uri(_c4iUrl);
 
-            int typeVal = type.Equals("Home", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+            // 1. Check if a point with this name already exists
+            var listRes = await client.GetAsync("api/points");
+            if (!listRes.IsSuccessStatusCode) return "Failed to retrieve existing points for validation.";
 
-            var point = new 
+            var listJson = await listRes.Content.ReadAsStringAsync();
+            using var doc = JsonDocument.Parse(listJson);
+            
+            string? existingId = null;
+            foreach (var element in doc.RootElement.EnumerateArray())
             {
-                name = name,
-                type = typeVal,
-                location = new 
+                if (element.GetProperty("name").GetString()?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
                 {
-                    type = "Point",
-                    coordinates = new[] { lng, lat }
+                    existingId = element.GetProperty("id").GetString();
+                    break;
                 }
-            };
+            }
 
-            var json = JsonSerializer.Serialize(point);
+            int typeVal = type.Equals("Home", StringComparison.OrdinalIgnoreCase) ? 0 : 1;
+            var pointDto = new { name, type = typeVal, lat, lng };
+            var json = JsonSerializer.Serialize(pointDto);
             var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await client.PostAsync("api/points", content);
+
+            HttpResponseMessage res;
+            string actionType;
+
+            if (existingId != null)
+            {
+                // UPDATE existing
+                res = await client.PutAsync($"api/points/{existingId}", content);
+                actionType = "Updated";
+            }
+            else
+            {
+                // CREATE new
+                res = await client.PostAsync("api/points", content);
+                actionType = "Created";
+            }
 
             if (!res.IsSuccessStatusCode)
-                return $"Failed to create point {name}. Status: {res.StatusCode}";
+                return $"Failed to {actionType.ToLower()} point {name}. Status: {res.StatusCode}";
 
-            var createdJson = await res.Content.ReadAsStringAsync();
-            var createdPoint = JsonSerializer.Deserialize<JsonElement>(createdJson);
-            await NotifyBff("Point", "Created", createdPoint);
+            // If it's a PUT, we need to fetch the updated point to notify the BFF, as PUT returns NoContent
+            JsonElement finalPoint;
+            if (existingId != null)
+            {
+                var fetchRes = await client.GetAsync($"api/points");
+                var fetchJson = await fetchRes.Content.ReadAsStringAsync();
+                using var fetchDoc = JsonDocument.Parse(fetchJson);
+                finalPoint = fetchDoc.RootElement.EnumerateArray().First(e => e.GetProperty("id").GetString() == existingId).Clone();
+            }
+            else
+            {
+                var createdJson = await res.Content.ReadAsStringAsync();
+                finalPoint = JsonSerializer.Deserialize<JsonElement>(createdJson);
+            }
 
-            _logger.LogInformation("Created point {Name} at {Lat}, {Lng}", name, lat, lng);
-            return $"Successfully created point '{name}' ({type}) at {lat}, {lng}.";
+            await NotifyBff("Point", actionType, finalPoint);
+            _logger.LogInformation("{ActionType} point {Name} at {Lat}, {Lng}", actionType, name, lat, lng);
+            return $"Successfully {actionType.ToLower()} point '{name}' ({type}) at {lat}, {lng}.";
         }
         catch (Exception ex)
         {
-            _logger.LogError(ex, "Error creating point");
+            _logger.LogError(ex, "Error creating/updating point");
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [KernelFunction, Description("Define a new rectangular No-Fly Zone on the map. This tool is for map management only.")]
+    public async Task<string> CreateRectangleZone(
+        [Description("Name of the zone."), Required] string name,
+        [Description("Minimum latitude."), Required] double minLat,
+        [Description("Minimum longitude."), Required] double minLng,
+        [Description("Maximum latitude."), Required] double maxLat,
+        [Description("Maximum longitude."), Required] double maxLng,
+        [Description("Minimum altitude in feet.")] double minAlt = 0,
+        [Description("Maximum altitude in feet.")] double maxAlt = 10000)
+    {
+        try 
+        {
+            using var client = _httpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(_c4iUrl);
+
+            // Check if zone with this name already exists
+            var listRes = await client.GetAsync("api/noflyzones");
+            if (!listRes.IsSuccessStatusCode) return "Failed to retrieve existing zones for validation.";
+            
+            var listJson = await listRes.Content.ReadAsStringAsync();
+            using var listDoc = JsonDocument.Parse(listJson);
+            string? existingId = null;
+            foreach (var element in listDoc.RootElement.EnumerateArray())
+            {
+                if (element.GetProperty("name").GetString()?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    existingId = element.GetProperty("id").GetString();
+                    break;
+                }
+            }
+
+            var coordinates = new[] {
+                new[] { minLng, minLat }, // SW
+                new[] { maxLng, minLat }, // SE
+                new[] { maxLng, maxLat }, // NE
+                new[] { minLng, maxLat }, // NW
+                new[] { minLng, minLat }  // Close loop
+            };
+
+            var zoneId = existingId != null ? Guid.Parse(existingId) : Guid.NewGuid();
+            var zone = new 
+            {
+                id = zoneId,
+                name,
+                minAltitude = minAlt,
+                maxAltitude = maxAlt,
+                isActive = true,
+                geometry = new 
+                {
+                    type = "Polygon",
+                    coordinates = new[] { coordinates }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(zone);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            HttpResponseMessage res;
+            string actionType;
+
+            if (existingId != null)
+            {
+                res = await client.PutAsync($"api/noflyzones/{existingId}", content);
+                actionType = "Updated";
+            }
+            else
+            {
+                res = await client.PostAsync("api/noflyzones", content);
+                actionType = "Created";
+            }
+
+            if (!res.IsSuccessStatusCode)
+                return $"Failed to {actionType.ToLower()} rectangle zone {name}. Status: {res.StatusCode}";
+
+            // Notify BFF
+            JsonElement finalZone;
+            if (existingId != null)
+            {
+                var fetchRes = await client.GetAsync("api/noflyzones");
+                var fetchJson = await fetchRes.Content.ReadAsStringAsync();
+                using var fetchDoc = JsonDocument.Parse(fetchJson);
+                finalZone = fetchDoc.RootElement.EnumerateArray().First(e => e.GetProperty("id").GetString() == existingId).Clone();
+            }
+            else
+            {
+                var createdJson = await res.Content.ReadAsStringAsync();
+                finalZone = JsonSerializer.Deserialize<JsonElement>(createdJson);
+            }
+
+            await NotifyBff("NoFlyZone", actionType, finalZone);
+            return $"Successfully {actionType.ToLower()} Rectangle No-Fly Zone '{name}' from ({minLat}, {minLng}) to ({maxLat}, {maxLng}).";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating/updating rectangle zone");
+            return $"Error: {ex.Message}";
+        }
+    }
+
+    [KernelFunction, Description("Define a new polygon No-Fly Zone on the map from a list of coordinates. This tool is for map management only.")]
+    public async Task<string> CreatePolygonZone(
+        [Description("Name of the zone."), Required] string name,
+        [Description("Coordinates as an array of [lng, lat] pairs. Example: [[34.1, 31.1], [34.2, 31.1], [34.2, 31.2], [34.1, 31.1]]"), Required] double[][] coordinates,
+        [Description("Minimum altitude in feet.")] double minAlt = 0,
+        [Description("Maximum altitude in feet.")] double maxAlt = 10000)
+    {
+        try 
+        {
+            using var client = _httpClientFactory.CreateClient();
+            client.BaseAddress = new Uri(_c4iUrl);
+
+            // Check if zone with this name already exists
+            var listRes = await client.GetAsync("api/noflyzones");
+            if (!listRes.IsSuccessStatusCode) return "Failed to retrieve existing zones for validation.";
+            
+            var listJson = await listRes.Content.ReadAsStringAsync();
+            using var listDoc = JsonDocument.Parse(listJson);
+            string? existingId = null;
+            foreach (var element in listDoc.RootElement.EnumerateArray())
+            {
+                if (element.GetProperty("name").GetString()?.Equals(name, StringComparison.OrdinalIgnoreCase) == true)
+                {
+                    existingId = element.GetProperty("id").GetString();
+                    break;
+                }
+            }
+
+            if (coordinates.Length < 3) return "Polygon must have at least 3 points.";
+            var coordList = coordinates.ToList();
+            if (coordList[0][0] != coordList[^1][0] || coordList[0][1] != coordList[^1][1])
+            {
+                coordList.Add(coordList[0]);
+            }
+
+            var zoneId = existingId != null ? Guid.Parse(existingId) : Guid.NewGuid();
+            var zone = new 
+            {
+                id = zoneId,
+                name,
+                minAltitude = minAlt,
+                maxAltitude = maxAlt,
+                isActive = true,
+                geometry = new 
+                {
+                    type = "Polygon",
+                    coordinates = new[] { coordList.ToArray() }
+                }
+            };
+
+            var json = JsonSerializer.Serialize(zone);
+            var content = new StringContent(json, Encoding.UTF8, "application/json");
+            
+            HttpResponseMessage res;
+            string actionType;
+
+            if (existingId != null)
+            {
+                res = await client.PutAsync($"api/noflyzones/{existingId}", content);
+                actionType = "Updated";
+            }
+            else
+            {
+                res = await client.PostAsync("api/noflyzones", content);
+                actionType = "Created";
+            }
+
+            if (!res.IsSuccessStatusCode)
+                return $"Failed to {actionType.ToLower()} polygon zone {name}. Status: {res.StatusCode}";
+
+            JsonElement finalZone;
+            if (existingId != null)
+            {
+                var fetchRes = await client.GetAsync("api/noflyzones");
+                var fetchJson = await fetchRes.Content.ReadAsStringAsync();
+                using var fetchDoc = JsonDocument.Parse(fetchJson);
+                finalZone = fetchDoc.RootElement.EnumerateArray().First(e => e.GetProperty("id").GetString() == existingId).Clone();
+            }
+            else
+            {
+                var createdJson = await res.Content.ReadAsStringAsync();
+                finalZone = JsonSerializer.Deserialize<JsonElement>(createdJson);
+            }
+
+            await NotifyBff("NoFlyZone", actionType, finalZone);
+            return $"Successfully {actionType.ToLower()} Polygon No-Fly Zone '{name}' with {coordList.Count} points.";
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Error creating/updating polygon zone");
             return $"Error: {ex.Message}";
         }
     }
@@ -186,117 +412,6 @@ public class MissionTools
         }
     }
 
-    [KernelFunction, Description("Define a new rectangular No-Fly Zone on the map. This tool is for map management only.")]
-    public async Task<string> CreateRectangleZone(
-        [Description("Name of the zone."), Required] string name,
-        [Description("Minimum latitude."), Required] double minLat,
-        [Description("Minimum longitude."), Required] double minLng,
-        [Description("Maximum latitude."), Required] double maxLat,
-        [Description("Maximum longitude."), Required] double maxLng,
-        [Description("Minimum altitude in feet.")] double minAlt = 0,
-        [Description("Maximum altitude in feet.")] double maxAlt = 10000)
-    {
-        try 
-        {
-            using var client = _httpClientFactory.CreateClient();
-            client.BaseAddress = new Uri(_c4iUrl);
-
-            var coordinates = new[] {
-                new[] { minLng, minLat }, // SW
-                new[] { maxLng, minLat }, // SE
-                new[] { maxLng, maxLat }, // NE
-                new[] { minLng, maxLat }, // NW
-                new[] { minLng, minLat }  // Close loop
-            };
-
-            var zone = new 
-            {
-                name,
-                minAltitude = minAlt,
-                maxAltitude = maxAlt,
-                isActive = true,
-                geometry = new 
-                {
-                    type = "Polygon",
-                    coordinates = new[] { coordinates }
-                }
-            };
-
-            var json = JsonSerializer.Serialize(zone);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await client.PostAsync("api/noflyzones", content);
-
-            if (!res.IsSuccessStatusCode)
-                return $"Failed to create rectangle zone {name}. Status: {res.StatusCode}";
-
-            var createdJson = await res.Content.ReadAsStringAsync();
-            var createdZone = JsonSerializer.Deserialize<JsonElement>(createdJson);
-            await NotifyBff("NoFlyZone", "Created", createdZone);
-
-            return $"Successfully created Rectangle No-Fly Zone '{name}' from ({minLat}, {minLng}) to ({maxLat}, {maxLng}).";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating rectangle zone");
-            return $"Error: {ex.Message}";
-        }
-    }
-
-    [KernelFunction, Description("Define a new polygon No-Fly Zone on the map from a list of coordinates. This tool is for map management only.")]
-    public async Task<string> CreatePolygonZone(
-        [Description("Name of the zone."), Required] string name,
-        [Description("Coordinates as an array of [lng, lat] pairs. Example: [[34.1, 31.1], [34.2, 31.1], [34.2, 31.2], [34.1, 31.1]]"), Required] double[][] coordinates,
-        [Description("Minimum altitude in feet.")] double minAlt = 0,
-        [Description("Maximum altitude in feet.")] double maxAlt = 10000)
-    {
-        try 
-        {
-            using var client = _httpClientFactory.CreateClient();
-            client.BaseAddress = new Uri(_c4iUrl);
-
-            // Simple validation: must have at least 4 points (closed loop)
-            if (coordinates.Length < 3) return "Polygon must have at least 3 points.";
-            
-            // Ensure closed loop
-            var coordList = coordinates.ToList();
-            if (coordList[0][0] != coordList[^1][0] || coordList[0][1] != coordList[^1][1])
-            {
-                coordList.Add(coordList[0]);
-            }
-
-            var zone = new 
-            {
-                name = name,
-                minAltitude = minAlt,
-                maxAltitude = maxAlt,
-                isActive = true,
-                geometry = new 
-                {
-                    type = "Polygon",
-                    coordinates = new[] { coordList.ToArray() }
-                }
-            };
-
-            var json = JsonSerializer.Serialize(zone);
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await client.PostAsync("api/noflyzones", content);
-
-            if (!res.IsSuccessStatusCode)
-                return $"Failed to create polygon zone {name}. Status: {res.StatusCode}";
-
-            var createdJson = await res.Content.ReadAsStringAsync();
-            var createdZone = JsonSerializer.Deserialize<JsonElement>(createdJson);
-            await NotifyBff("NoFlyZone", "Created", createdZone);
-
-            return $"Successfully created Polygon No-Fly Zone '{name}' with {coordList.Count} points.";
-        }
-        catch (Exception ex)
-        {
-            _logger.LogError(ex, "Error creating polygon zone");
-            return $"Error: {ex.Message}";
-        }
-    }
-
     [KernelFunction, Description("List all active No-Fly Zones.")]
     public async Task<string> ListNoFlyZones()
     {
@@ -346,7 +461,7 @@ public class MissionTools
                 if (delRes.IsSuccessStatusCode)
                 {
                     count++;
-                    await NotifyBff("NoFlyZone", "Deleted", new { Id = id });
+                    await NotifyBff("Point", "Deleted", new { Id = id });
                 }
             }
 

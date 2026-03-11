@@ -78,3 +78,4 @@ build/
 # AI Models & Large Files
 Backend/Bff.Service/resources/ggml-base.en.bin
 Backend/Bff.Service/resources/backup/
+.$ScalableAgentArchitecture.drawio.bkp

@@ -8,13 +8,13 @@
 Next-generation flight control and visualization system with C4I entity management and AI-driven mission planning.
 
 ## Scalable Agent Architecture
-The project has transitioned to a highly scalable, multi-tiered agent architecture (`Backend/Agents.*` projects) to handle complex routing and intent delegation with **decoupled model reasoning**:
-- **Tier 1 - Orchestration & Routing:** A **Router Agent** analyzes user intent and delegates tasks. It utilizes an **Agent & Tool Registry (Vector DB / RAG)** to semantically query capabilities. Currently powered by **GLM-4 (30B)** for high-precision decision making.
-- **Tier 2 - Specialized Agent Layer:** Requests are routed to domain-specific kernels, now optimized for speed using **Ministral-3 (3B)**:
-  - **Mission Control Agent:** Handles planning, map zones, and operational points.
-  - **Flight Control Agent:** Manages UAV navigation, altitude, and speed telemetry.
-  - **Payload Agent:** Controls cameras, sensors, and gimbal locking.
-- **Tier 3 - Dynamic Tool & MCP Execution:** A **Dynamic Tool Injector** fetches Top-K schemas just-in-time, allowing agents to execute requests directly against targeted MCP servers.
+The project utilizes a high-performance, multi-tiered agent architecture (`Backend/Agents.*` projects) optimized for precise intent delegation and technical execution:
+- **Tier 1 - Orchestration & Routing:** A **Router Agent** (GLM-4 30B) analyzes user intent and delegates tasks to specialized agents. It utilizes a semantic classification system to determine required domains (Flight, Mission, Payload).
+- **Tier 2 - Specialized Technical Agents:** Domain-specific kernels (all powered by GLM-4 30B for maximum reliability) execute complex logic using **Native Semantic Kernel Tools**:
+  - **Mission Control Agent:** Manages persistent operational points and No-Fly Zones.
+  - **Flight Control Agent:** Handles UAV navigation (Optimal pathfinding), speed, and altitude telemetry.
+  - **Payload Agent:** Controls camera gimbal locking and sensor resets.
+- **Truth Guard & Response Hardening:** A verification layer ensures 100% truthful reporting. If tools succeed, agents return a strict, professional technical summary (e.g., 'Executed: [command]') while ignoring LLM chat fluff. If tools fail, the failure is explicitly reported.
 
 ## Features Implemented
 - **Voice Control & Co-pilot (Operation "Voice Command")**
@@ -53,9 +53,11 @@ The project has transitioned to a highly scalable, multi-tiered agent architectu
 
 - **AI Mission Planning**
   - **Automated Sensor:** Flight system automatically locks the camera on the target during transit if no manual lock is set.
-  - **Tooling:** AI uses `NavigateTo` (Optimal pathfinding), `PointPayload` (Manual camera lock), and `ChangeSpeed/Altitude` tools.
-  - **Strict Response Style:** AI responds with single, concise sentences (Markdown stripped for TTS).
+  - **Native Tooling:** Tier 2 agents use native `[KernelFunction]` tools for high-speed execution, replacing redundant MCP infrastructure.
+  - **Hardened Responses:** AI provides concise, technical confirmations (e.g. 'Executed: [command]'). Markdown and conversational filler are stripped for TTS clarity.
+  - **Strict Literalism:** Mandate enforced to use exact location names (e.g., 'Target A' vs 'Alpha') to prevent resolution failures.
   - **Data Freshness:** AI fetches fresh entity lists from DB for every operation.
+
 
 - **User Interface Enhancements**
   - **Picture-in-Picture (PiP):** 
@@ -75,13 +77,13 @@ The project has transitioned to a highly scalable, multi-tiered agent architectu
   - **Centralized Dashboard:** .NET Aspire Dashboard for monitoring traces, metrics, and logs.
 
 ## Technical Details
-- **Backend:** .NET 10, Multi-Tiered Agent Architecture (Semantic Routing, Vector DB), Entity Framework Core, Npgsql (PostGIS), Model Context Protocol (MCP).
+- **Backend:** .NET 10, Multi-Tiered Agent Architecture (Semantic Routing), Native Semantic Kernel Tools, Entity Framework Core, Npgsql (PostGIS).
 - **Speech:** SherpaOnnx (TTS), Whisper.net (STT).
 - **Frontend:** Vue 3, CesiumJS, Tailwind CSS, SignalR.
 
 ## Key Files
 - `Backend/Agents.Router/Program.cs`: Core orchestration and intent delegation logic.
-- `Backend/Bff.Service/Services/OfflineSpeechService.cs`: Offline TTS/STT engine.
+- `Backend/Agents.FlightControl/FlightTools.cs`: Native flight mechanics and pathfinding logic.
+- `Backend/Agents.Payload/PayloadTools.cs`: Native gimbal and sensor control logic.
+- `Backend/Bff.Service/Services/AiChatService.cs`: Intelligent response merging and agent dispatch.
 - `frontend/src/composables/useCesiumFlightLayer.ts`: 3D flight visualization & sensor footprint.
-- `frontend/src/utils/CesiumAdvancedMaterials.ts`: Custom shader materials (Digital Pulse Beam).
-- `Backend/McpServer.FlightControl/Tools.cs`: Navigation & Pathfinding integration.

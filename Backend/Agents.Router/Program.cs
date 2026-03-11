@@ -10,18 +10,21 @@ builder.Services.AddOpenApi();
 var ollamaOpenAiEndpoint = builder.Configuration["OllamaOpenAiEndpoint"] ?? "http://localhost:11434/v1";
 var modelId = builder.Configuration["RouterModel"] ?? builder.Configuration["OllamaModel"] ?? "llama3.2";
 
+// Register Semantic Kernel and AI Services in DI
+builder.Services.AddOpenAIChatCompletion(modelId, endpoint: new Uri(ollamaOpenAiEndpoint), apiKey: "ignore");
+builder.Services.AddKernel();
+
 var app = builder.Build();
 
-app.MapPost("/route", async ([FromBody] string message) =>
+app.MapPost("/route", async ([FromBody] string message, Kernel kernel) =>
 {
-    var kernelBuilder = Kernel.CreateBuilder();
-    kernelBuilder.AddOpenAIChatCompletion(modelId, endpoint: new Uri(ollamaOpenAiEndpoint), apiKey: "ignore");
-    var kernel = kernelBuilder.Build();
-
     var chatSvc = kernel.GetRequiredService<IChatCompletionService>();
     var history = new ChatHistory();
-    history.AddSystemMessage("You are the Tier 1 Router Agent. Decisions: [FlightControl, MissionControl, Payload]. " +
-                           "For navigation (fly, go, home), ALWAYS use BOTH [\"FlightControl\", \"Payload\"]. " +
+    history.AddSystemMessage("You are the Tier 1 Router Agent. Decisions: [FlightControl, MissionControl, Payload].\n" +
+                           "ROUTING RULES:\n" +
+                           "1. For navigation (fly, go, return, home, speed, altitude), ALWAYS use [\"FlightControl\", \"Payload\"].\n" +
+                           "2. For map management (create, add, delete, remove, clear, points, zones), use [\"MissionControl\"].\n" +
+                           "3. CRITICAL: DO NOT use MissionControl for flight commands unless it's explicitly to CREATE or DELETE a point/zone.\n" +
                            "Return ONLY a JSON string array of required agents.");
     history.AddUserMessage(message);
 

@@ -39,8 +39,15 @@ GOOGLE_GEMINI_KEY=
 
 # Ollama Configuration
 # "host.docker.internal" allows the container to access Ollama running on your host machine.
-OLLAMA_URL=http://host.docker.internal:11434
+OLLAMA_URL=http://192.168.2.1:11434
+# OLLAMA_URL=http://host.docker.internal:11434
 OLLAMA_MODEL=granite4:3b
+
+# Agent Specific Models
+ROUTER_MODEL=granite4:3b
+FLIGHT_MODEL=granite4:3b
+MISSION_MODEL=granite4:3b
+PAYLOAD_MODEL=granite4:3b
 
 # AI Provider Selection
 # Options: Ollama, OpenAI, Gemini

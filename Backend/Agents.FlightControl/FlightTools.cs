@@ -26,7 +26,9 @@ public class FlightTools
     [KernelFunction, Description("Command the UAV to fly to an EXISTING named point on the map. This tool is for flight control. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
     public async Task<string> NavigateTo(
         [Description("The name of an already defined point to fly to (e.g., 'Home', 'Target Alpha')."), Required] 
-        string location)
+        string location,
+        [Description("Optional target altitude in feet. If provided, pathfinding will account for obstacles at this altitude.")]
+        int? targetAltitude = null)
     {
         try
         {
@@ -46,7 +48,7 @@ public class FlightTools
             using var doc = JsonDocument.Parse(stateJson);
             var currentLat = doc.RootElement.GetProperty("lat").GetDouble();
             var currentLng = doc.RootElement.GetProperty("lng").GetDouble();
-            var currentAlt = doc.RootElement.GetProperty("altitude").GetDouble();
+            var currentAlt = targetAltitude ?? doc.RootElement.GetProperty("altitude").GetDouble();
 
             // 3. Calculate Path (Call C4I Service)
             var c4IUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
