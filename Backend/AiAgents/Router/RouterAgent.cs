@@ -2,12 +2,13 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using System.Text.Json;
+using AiAgents.Shared;
 
 namespace AiAgents.Router;
 
-public class RouterAgent(IChatCompletionService chatSvc)
+public class RouterAgent(IChatCompletionService chatSvc, NotificationService notifier)
 {
-    public async Task<List<string>> ClassifyAsync(string message)
+    public async Task<List<string>> ClassifyAsync(string message, string correlationId)
     {
         var history = new ChatHistory();
         history.AddSystemMessage("# MISSION\n" +
@@ -29,7 +30,7 @@ public class RouterAgent(IChatCompletionService chatSvc)
         var response = await chatSvc.GetChatMessageContentAsync(history, settings);
         var content = response.Content?.Trim() ?? "";
         
-        Console.WriteLine($"[RouterAgent] Thought: {content}");
+        await notifier.NotifyAsync(correlationId, "Router", "Classification", $"Determined domains: {content}");
 
         var targets = new List<string>();
         if (content.Contains("[") && content.Contains("]"))

@@ -26,24 +26,20 @@ public class TtsController : ControllerBase
 
         try
         {
-            // Use local SpeechService
             var audioBytes = await _speechService.GenerateAudioAsync(text);
             
-            if (audioBytes.Length == 0)
+            if (audioBytes == null || audioBytes.Length == 0)
             {
-                 // Fallback or error?
-                 // For now, return error
                  _logger.LogError("TTS Service returned empty audio.");
                  return StatusCode(500, "TTS Generation Failed");
             }
 
-            // Determine content type
-            string contentType = "audio/wav";
+            // Determine content type: Google usually returns MP3, Offline returns WAV
+            string contentType = "audio/mpeg"; 
             if (audioBytes.Length > 3 && 
-                !(audioBytes[0] == 'R' && audioBytes[1] == 'I' && audioBytes[2] == 'F' && audioBytes[3] == 'F'))
+                audioBytes[0] == 'R' && audioBytes[1] == 'I' && audioBytes[2] == 'F' && audioBytes[3] == 'F')
             {
-                // Likely MP3 or other format if not WAV
-                contentType = "audio/mpeg";
+                contentType = "audio/wav";
             }
 
             return File(audioBytes, contentType);

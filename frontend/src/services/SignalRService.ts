@@ -10,10 +10,8 @@ class SignalRService {
       .withAutomaticReconnect({
         nextRetryDelayInMilliseconds: retryContext => {
           if (retryContext.elapsedMilliseconds < 60000) {
-            // If we've been reconnecting for less than 60 seconds, retry every 2s
             return 2000;
           } else {
-            // Otherwise, retry every 10s
             return 10000;
           }
         }
@@ -41,7 +39,6 @@ class SignalRService {
         console.log("SignalR Connected.");
       } catch (err) {
         console.error("SignalR Connection Error: ", err);
-        // Infinite retry for initial connection
         setTimeout(start, 5000);
       }
     };
@@ -62,8 +59,12 @@ class SignalRService {
     this.connection.on("ReceiveFlightData", callback);
   }
 
-  public onReceiveChatMessage(callback: (user: string, text: string, duration?: number) => void): void {
+  public onReceiveChatMessage(callback: (user: string, text: string, duration?: number, correlationId?: string) => void): void {
     this.connection.on("ReceiveChatMessage", callback);
+  }
+
+  public onReceiveAiTrace(callback: (correlationId: string, agent: string, step: string, content: string) => void): void {
+    this.connection.on("ReceiveAiTrace", callback);
   }
 
   public onEntityUpdate(callback: (update: { entityType: string; changeType: string; data: any }) => void): void {
@@ -74,8 +75,8 @@ class SignalRService {
     this.connection.on(eventName, callback);
   }
 
-  public async sendChatMessage(user: string, message: string): Promise<void> {
-    await this.connection.invoke("ProcessChatMessage", user, message);
+  public async sendChatMessage(user: string, message: string, correlationId?: string): Promise<void> {
+    await this.connection.invoke("ProcessChatMessage", user, message, correlationId);
   }
 
   public async checkAiStatus(): Promise<boolean> {

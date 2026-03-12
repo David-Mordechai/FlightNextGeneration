@@ -13,13 +13,15 @@ public class PayloadTools
     private readonly GeocodingService _geocodingService;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly NotificationService _notifier;
 
-    public PayloadTools(ILogger<PayloadTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
+    public PayloadTools(ILogger<PayloadTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration, NotificationService notifier)
     {
         _logger = logger;
         _geocodingService = geocodingService;
         _httpClient = httpClient;
         _configuration = configuration;
+        _notifier = notifier;
         var bffUrl = _configuration["BffServiceUrl"] ?? "http://bff.service:8080";
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
@@ -44,7 +46,6 @@ public class PayloadTools
 
             if (!res.IsSuccessStatusCode) return $"Fail to point camera at {location}.";
 
-            _logger.LogInformation("Camera gimbal locked to {Location} (Alt: {Alt}m).", location, targetCoords.Value.Alt);
             return $"Camera gimbal locked to {location}.";
         }
         catch (Exception ex)
@@ -62,7 +63,6 @@ public class PayloadTools
             var res = await _httpClient.GetAsync("api/mission/payload/reset");
             if (!res.IsSuccessStatusCode) return "Fail to reset camera gimbal.";
 
-            _logger.LogInformation("Camera gimbal reset to scan mode.");
             return "Camera gimbal reset to default scan mode.";
         }
         catch (Exception ex)

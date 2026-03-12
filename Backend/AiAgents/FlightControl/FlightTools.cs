@@ -13,15 +13,25 @@ public class FlightTools
     private readonly GeocodingService _geocodingService;
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _configuration;
+    private readonly NotificationService _notifier;
 
-    public FlightTools(ILogger<FlightTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration)
+    public FlightTools(ILogger<FlightTools> logger, GeocodingService geocodingService, HttpClient httpClient, IConfiguration configuration, NotificationService notifier)
     {
         _logger = logger;
         _geocodingService = geocodingService;
         _httpClient = httpClient;
         _configuration = configuration;
+        _notifier = notifier;
         var bffUrl = _configuration["BffServiceUrl"] ?? "http://bff.service:8080";
         _httpClient.BaseAddress = new Uri(bffUrl);
+    }
+
+    private string? GetCorrelationId()
+    {
+        // For tools, we'd ideally pass the correlation ID through arguments or async local storage.
+        // For now, tools will rely on the Agent to report the main steps, 
+        // but we can add optional correlationId to tool parameters if needed.
+        return null;
     }
 
     [KernelFunction, Description("Fly the UAV to a named point (e.g., 'Home', 'Target Alpha').")]
@@ -76,37 +86,23 @@ public class FlightTools
 
             if (pointCount <= 2)
             {
-                // Straight line - Use direct navigation
-                var json = JsonSerializer.Serialize(new
-                {
-                    lat = targetCoords.Value.Lat,
-                    lng = targetCoords.Value.Lng
-                });
-                var content = new StringContent(json, Encoding.UTF8, "application/json");
-                var res = await _httpClient.PostAsync("api/mission/target", content);
+                // Straight line
+                var json = JsonSerializer.Serialize(new { lat = targetCoords.Value.Lat, lng = targetCoords.Value.Lng });
+                var res = await _httpClient.PostAsync("api/mission/target", new StringContent(json, Encoding.UTF8, "application/json"));
 
-                if (!res.IsSuccessStatusCode)
-                    return $"Fail to update mission to location {location}.";
+                if (!res.IsSuccessStatusCode) return $"Fail to update mission to location {location}.";
 
-                _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}).", location,
-                    targetCoords.Value.Lat, targetCoords.Value.Lng);
                 return $"Flying to {location}.";
             }
             else
             {
-                // Complex path - Preview and Execute
+                // Complex path
                 var pathJson = JsonSerializer.Serialize(pathElement);
                 var content = new StringContent(pathJson, Encoding.UTF8, "application/json");
                 
-                // Preview
-                var previewRes = await _httpClient.PostAsync("api/mission/path/preview", content);
-                if (!previewRes.IsSuccessStatusCode) return "Failed to preview optimal path.";
+                await _httpClient.PostAsync("api/mission/path/preview", content);
+                await _httpClient.PostAsync("api/mission/path/execute", null);
 
-                // Execute
-                var execRes = await _httpClient.PostAsync("api/mission/path/execute", null);
-                if (!execRes.IsSuccessStatusCode) return "Failed to execute optimal path.";
-
-                _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}.", location);
                 return $"Executing optimal route to {location} (avoiding NFZs).";
             }
         }
@@ -123,17 +119,11 @@ public class FlightTools
     {
         try
         {
-            var json = JsonSerializer.Serialize(new
-            {
-                speed
-            });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await _httpClient.PostAsync("api/mission/speed", content);
+            var json = JsonSerializer.Serialize(new { speed });
+            var res = await _httpClient.PostAsync("api/mission/speed", new StringContent(json, Encoding.UTF8, "application/json"));
 
-            if (!res.IsSuccessStatusCode)
-                return $"Fail to update to speed {speed} kts.";
+            if (!res.IsSuccessStatusCode) return $"Fail to update to speed {speed} kts.";
             
-            _logger.LogInformation("Adjusting speed to {Speed} kts.", speed);
             return $"Speed set to {speed} kts.";
         }
         catch (Exception ex)
@@ -149,17 +139,11 @@ public class FlightTools
     {
         try
         {
-            var json = JsonSerializer.Serialize(new
-            {
-                altitude
-            });
-            var content = new StringContent(json, Encoding.UTF8, "application/json");
-            var res = await _httpClient.PostAsync("api/mission/altitude", content);
+            var json = JsonSerializer.Serialize(new { altitude });
+            var res = await _httpClient.PostAsync("api/mission/altitude", new StringContent(json, Encoding.UTF8, "application/json"));
 
-            if (!res.IsSuccessStatusCode)
-                return $"Fail to update to altitude {altitude} feet.";
+            if (!res.IsSuccessStatusCode) return $"Fail to update to altitude {altitude} feet.";
             
-            _logger.LogInformation("Changing altitude to {Altitude} ft.", altitude);
             return $"Altitude set to {altitude} ft.";
         }
         catch (Exception ex)

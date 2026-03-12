@@ -1,12 +1,13 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
+using AiAgents.Shared;
 
 namespace AiAgents.MissionControl;
 
-public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools)
+public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools, NotificationService notifier)
 {
-    public async Task<string> ProcessAsync(string message)
+    public async Task<string> ProcessAsync(string message, string correlationId)
     {
         // Construct an isolated Kernel for this agent
         var kernel = new Kernel();
@@ -21,6 +22,8 @@ public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools)
         history.AddUserMessage(message);
 
         var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() };
+        
+        await notifier.NotifyAsync(correlationId, "MissionControl", "Thinking", "Analyzing mission data requests...");
         
         await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
 
@@ -38,6 +41,8 @@ public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools)
             var actions = new List<string>();
             foreach (var name in successfulCallNames)
             {
+                await notifier.NotifyAsync(correlationId, "MissionControl", "Result", $"Action completed: {name}");
+                
                 if (name == "CreatePoint") actions.Add("updated map points");
                 if (name == "DeletePointByName") actions.Add("removed map points");
                 if (name == "CreateRectangleZone") actions.Add("updated restricted zones");

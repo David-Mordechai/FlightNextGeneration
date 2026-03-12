@@ -14,6 +14,7 @@ builder.Services.AddOpenApi();
 // 1. Register Infrastructure
 builder.Services.AddHttpClient();
 builder.Services.AddSingleton<GeocodingService>();
+builder.Services.AddSingleton<NotificationService>(); // SignalR Client
 
 // 2. Register Agent Tools (Plugins)
 builder.Services.AddSingleton<FlightTools>();
@@ -34,17 +35,20 @@ builder.Services.AddScoped<MissionAgent>();
 
 var app = builder.Build();
 
-app.MapPost("/execute", async ([FromBody] string message, 
+app.MapPost("/execute", async (HttpContext context, [FromBody] string message, 
     RouterAgent router, 
     FlightAgent flight, 
     PayloadAgent payload, 
-    MissionAgent mission) =>
+    MissionAgent mission,
+    NotificationService notifier) =>
 {
     var startTime = DateTime.UtcNow;
-    Console.WriteLine($"[AiAgents] START Request: {message}");
+    var correlationId = context.Request.Headers["X-Correlation-Id"].FirstOrDefault() ?? Guid.NewGuid().ToString().Substring(0, 8);
+    
+    Console.WriteLine($"[AiAgents] START Request [{correlationId}]: {message}");
 
-    // Phase 1: Routing (In-Process)
-    var targets = await router.ClassifyAsync(message);
+    // Phase 1: Routing
+    var targets = await router.ClassifyAsync(message, correlationId);
     Console.WriteLine($"[AiAgents] Targets: {string.Join(", ", targets)}");
 
     if (targets.Count == 0) return Results.Ok(new { Response = "I'm not sure how to help with that request. Please try again." });
@@ -55,9 +59,9 @@ app.MapPost("/execute", async ([FromBody] string message,
     {
         string? response = target switch
         {
-            "FlightControl" => await flight.ProcessAsync(message),
-            "Payload" => await payload.ProcessAsync(message),
-            "MissionControl" => await mission.ProcessAsync(message),
+            "FlightControl" => await flight.ProcessAsync(message, correlationId),
+            "Payload" => await payload.ProcessAsync(message, correlationId),
+            "MissionControl" => await mission.ProcessAsync(message, correlationId),
             _ => null
         };
 
@@ -71,14 +75,15 @@ app.MapPost("/execute", async ([FromBody] string message,
 
     // Phase 3: Final Consolidation
     var finalResult = string.Join(". ", responses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
-    
-    // Ensure we don't return just a dot
     if (finalResult == ".") finalResult = "Action acknowledged and executed.";
 
     var duration = (DateTime.UtcNow - startTime).TotalSeconds;
     Console.WriteLine($"[AiAgents] END Request. Duration: {duration:F2}s. Result: {finalResult}");
 
-    return Results.Ok(new { Response = finalResult });
+    // Final Trace
+    await notifier.NotifyAsync(correlationId, "System", "Final Result", finalResult);
+
+    return Results.Ok(new { Response = finalResult, Duration = duration });
 });
 
 app.Run();

@@ -2,16 +2,20 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using System.Text.RegularExpressions;
+using AiAgents.Shared;
 
 namespace AiAgents.FlightControl;
 
-public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools)
+public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools, NotificationService notifier)
 {
-    public async Task<string> ProcessAsync(string message)
+    public async Task<string> ProcessAsync(string message, string correlationId)
     {
         var kernel = new Kernel();
         kernel.Plugins.AddFromObject(tools, "Flight");
 
+        // Attach correlation ID to tools via Metadata or Scope if needed, 
+        // but for now tools will be called manually so we can pass it.
+        
         var history = new ChatHistory();
         history.AddSystemMessage("# MISSION\n" +
                                "Extract and execute UAV navigation, speed, and altitude commands.\n\n" +
@@ -44,17 +48,20 @@ public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools)
             {
                 try 
                 {
+                    await notifier.NotifyAsync(correlationId, "FlightControl", "Action", $"Executing tool: {funcName}");
+                    
                     var result = await call.InvokeAsync(kernel);
                     
-                    // Extract actual string content from the FunctionResultContent
                     var resultStr = "";
                     if (result is FunctionResultContent frc) resultStr = frc.Result?.ToString() ?? "";
                     else resultStr = result.ToString() ?? "";
                     
+                    await notifier.NotifyAsync(correlationId, "FlightControl", "Result", resultStr);
                     executedActions.Add(resultStr);
                 }
                 catch (Exception ex)
                 {
+                    await notifier.NotifyAsync(correlationId, "FlightControl", "Error", $"Tool failed: {ex.Message}");
                     executedActions.Add($"Failed to execute {funcName}: {ex.Message}");
                 }
             }

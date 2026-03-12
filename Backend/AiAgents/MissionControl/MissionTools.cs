@@ -3,6 +3,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
 using Microsoft.SemanticKernel;
+using AiAgents.Shared;
 
 namespace AiAgents.MissionControl;
 
@@ -11,11 +12,13 @@ public class MissionTools
     private readonly HttpClient _httpClient;
     private readonly ILogger<MissionTools> _logger;
     private readonly string _c4iUrl;
+    private readonly NotificationService _notifier;
 
-    public MissionTools(HttpClient httpClient, ILogger<MissionTools> logger, IConfiguration configuration)
+    public MissionTools(HttpClient httpClient, ILogger<MissionTools> logger, IConfiguration configuration, NotificationService notifier)
     {
         _httpClient = httpClient;
         _logger = logger;
+        _notifier = notifier;
         _c4iUrl = configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";
     }
 

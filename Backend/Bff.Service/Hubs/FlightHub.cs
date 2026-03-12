@@ -3,8 +3,10 @@ using Microsoft.AspNetCore.SignalR;
 
 namespace Bff.Service.Hubs;
 
-public class FlightHub(AiChatService aiChatService, ILogger<FlightHub> logger) : Hub
+public class FlightHub(AiChatService aiChatService, ILogger<FlightHub> logger, IServiceProvider serviceProvider) : Hub
 {
+    private NotificationService NotificationService => serviceProvider.GetRequiredService<NotificationService>();
+
     public async Task SendFlightData(string flightId, double latitude, double longitude, double heading, double altitude, double speed)
     {
         await Clients.All.SendAsync("ReceiveFlightData", flightId, latitude, longitude, heading, altitude, speed);
@@ -13,29 +15,27 @@ public class FlightHub(AiChatService aiChatService, ILogger<FlightHub> logger) :
     public async Task<bool> CheckAiStatus()
     {
         var isReady = await aiChatService.CheckReadinessAsync();
-        if (isReady)
-        {
-            logger.LogInformation("Client requested AI Status: ONLINE");
-        }
-        else
-        {
-            logger.LogWarning("Client requested AI Status: OFFLINE (Check failed)");
-        }
         return isReady;
     }
 
-    public async Task ProcessChatMessage(string user, string message)
+    public async Task ProcessChatMessage(string user, string message, string? correlationId = null)
     {
-        // Simply broadcast the message to all clients
-        await Clients.All.SendAsync("ReceiveChatMessage", user, message, null); // Pass null for duration for user messages
+        Console.WriteLine($"[FlightHub] ProcessChatMessage: {user}, {message}, {correlationId}");
+        
+        // Broadcast the user's message immediately with the correlationId
+        await NotificationService.NotifyChatMessage(user, message, null, correlationId);
 
-        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
-        var result = await aiChatService.ProcessUserMessage(message);
-        stopwatch.Stop();
+        // Process message through agentic system
+        var aiResponse = await aiChatService.ProcessUserMessage(message, correlationId);
         
-        var durationSeconds = stopwatch.Elapsed.TotalSeconds;
-        logger.LogInformation("AI Request processed in {Duration} seconds", durationSeconds);
-        
-        await Clients.All.SendAsync("ReceiveChatMessage", "Mission Control", result, durationSeconds);
+        // Broadcast final response with the SAME correlationId
+        await NotificationService.NotifyChatMessage("Mission Control", aiResponse.Response, aiResponse.Duration, aiResponse.CorrelationId);
+    }
+
+    // New method for agents to send traces to the BFF Hub
+    public async Task SendTraceFromAgent(string correlationId, string agent, string step, string content)
+    {
+        Console.WriteLine($"[FlightHub] SendTraceFromAgent: {correlationId}, {agent}, {step}");
+        await NotificationService.NotifyAiTrace(correlationId, agent, step, content);
     }
 }

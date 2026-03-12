@@ -3,6 +3,8 @@ using System.Text;
 
 namespace Bff.Service.Services;
 
+public record AiResponse(string Response, double Duration, string CorrelationId);
+
 public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
 {
     private readonly HttpClient _httpClient = new();
@@ -21,24 +23,30 @@ public class AiChatService(ILogger<AiChatService> logger, IConfiguration config)
         }
     }
 
-    public async Task<string> ProcessUserMessage(string userMessage)
+    public async Task<AiResponse> ProcessUserMessage(string userMessage, string? correlationId = null)
     {
+        var cid = correlationId ?? Guid.NewGuid().ToString().Substring(0, 8);
         try
         {
-            logger.LogInformation("[Tier 1] Unified Agent System processing: {Message}", userMessage);
+            logger.LogInformation("[{CorrelationId}] [Tier 1] Unified Agent System processing: {Message}", cid, userMessage);
             
-            var response = await _httpClient.PostAsJsonAsync($"{_aiAgentsUrl}/execute", userMessage);
-            if (!response.IsSuccessStatusCode) return "Unified Agent System failed to respond.";
+            using var request = new HttpRequestMessage(HttpMethod.Post, $"{_aiAgentsUrl}/execute");
+            request.Content = new StringContent(JsonSerializer.Serialize(userMessage), Encoding.UTF8, "application/json");
+            request.Headers.Add("X-Correlation-Id", cid);
+
+            var response = await _httpClient.SendAsync(request);
+            if (!response.IsSuccessStatusCode) return new AiResponse("Unified Agent System failed to respond.", 0, cid);
             
             var data = await response.Content.ReadFromJsonAsync<JsonElement>();
             string finalResult = data.GetProperty("response").GetString() ?? "Request processed.";
+            double duration = data.TryGetProperty("duration", out var d) ? d.GetDouble() : 0;
             
-            return finalResult;
+            return new AiResponse(finalResult, duration, cid);
         }
         catch (Exception ex)
         {
             logger.LogError(ex, "Fail to process user message through unified agent system");
-            return "Error processing request.";
+            return new AiResponse("Error processing request.", 0, cid);
         }
     }
 

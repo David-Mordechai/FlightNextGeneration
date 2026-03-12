@@ -2,12 +2,13 @@ using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
 using Microsoft.SemanticKernel.Connectors.OpenAI;
 using System.Text.RegularExpressions;
+using AiAgents.Shared;
 
 namespace AiAgents.Payload;
 
-public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools)
+public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools, NotificationService notifier)
 {
-    public async Task<string> ProcessAsync(string message)
+    public async Task<string> ProcessAsync(string message, string correlationId)
     {
         // Construct an isolated Kernel for this agent
         var kernel = new Kernel();
@@ -39,17 +40,20 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools)
             {
                 try 
                 {
+                    await notifier.NotifyAsync(correlationId, "Payload", "Action", $"Executing tool: {funcName}");
+                    
                     var result = await call.InvokeAsync(kernel);
                     
-                    // Extract actual string content from the FunctionResultContent
                     var resultStr = "";
                     if (result is FunctionResultContent frc) resultStr = frc.Result?.ToString() ?? "";
                     else resultStr = result.ToString() ?? "";
                     
+                    await notifier.NotifyAsync(correlationId, "Payload", "Result", resultStr);
                     executedActions.Add(resultStr);
                 }
                 catch (Exception ex)
                 {
+                    await notifier.NotifyAsync(correlationId, "Payload", "Error", $"Tool failed: {ex.Message}");
                     executedActions.Add($"Failed to execute {funcName}: {ex.Message}");
                 }
             }
