@@ -28,72 +28,76 @@ app.MapPost("/execute", async ([FromBody] string message, Kernel kernel) =>
     var chatSvc = kernel.GetRequiredService<IChatCompletionService>();
     var history = new ChatHistory();
     
-    history.AddSystemMessage("You are the Flight Control Agent. Available Tools: [NavigateTo, ChangeSpeed, ChangeAltitude].\n" +
-                           "MANDATE: Use EXACT location names from user (e.g. 'Target A').\n" +
-                           "CRITICAL RULE: You MUST call a tool for EVERY specific command in the user message. If they ask for speed AND altitude, you MUST call both tools.\n" +
-                           "CRITICAL RULE: If the user requests an altitude change AND a flight to a location, pass the NEW altitude to the 'targetAltitude' parameter of 'NavigateTo'.\n" +
-                           "RULE: Respond with ONLY one technical string. Example: 'Flying to Home at 500 kts, 5000 ft'. No fluff.");
+    history.AddSystemMessage("You are a flight command parser. Your mission is to extract and execute tools for ALL flight parameters in the user message.\n" +
+                           "RULES:\n" +
+                           "- If 'fly', 'go', 'home' or a location is mentioned -> call NavigateTo.\n" +
+                           "- If 'speed' is mentioned -> call ChangeSpeed with the number provided.\n" +
+                           "- If 'altitude' is mentioned -> call ChangeAltitude with the number provided.\n" +
+                           "Example: 'fly target2 speed 500 altitude 5000' -> NavigateTo(location='target2'), ChangeSpeed(speed=500), ChangeAltitude(altitude=5000)");
 
     history.AddUserMessage(message);
 
-    var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() };
+    // STABILITY: Disable auto-invocation to manually filter tool calls
+    var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(autoInvoke: false) };
     
-    // SINGLE PASS: Trigger tool execution.
-    await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
+    // 1. Get tool choices from LLM
+    var response = await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
+    
+    // 2. Extract and Filter tool calls
+    var toolCalls = response.Items.OfType<FunctionCallContent>().ToList();
+    var executedActions = new List<string>();
+
+    foreach (var call in toolCalls)
+    {
+        bool allowed = true;
+        if (call.FunctionName == "ChangeSpeed" && !message.Contains("speed", StringComparison.OrdinalIgnoreCase)) allowed = false;
+        if (call.FunctionName == "ChangeAltitude" && !message.Contains("altitude", StringComparison.OrdinalIgnoreCase)) allowed = false;
+        if (call.FunctionName == "NavigateTo" && !Regex.IsMatch(message, @"fly|go|home|return|target", RegexOptions.IgnoreCase)) allowed = false;
+
+        if (allowed)
+        {
+            try 
+            {
+                var result = await call.InvokeAsync(kernel);
+                
+                // Collect for summary
+                var args = call.Arguments;
+                if (call.FunctionName == "NavigateTo") 
+                {
+                    object? loc = null;
+                    if (args != null && !args.TryGetValue("location", out loc)) args.TryGetValue("locationName", out loc);
+                    executedActions.Add($"setting course for {loc ?? "the target"}");
+                }
+                if (call.FunctionName == "ChangeSpeed") 
+                {
+                    object? speed = null;
+                    args?.TryGetValue("speed", out speed);
+                    executedActions.Add($"adjusting speed to {speed ?? "requested"} knots");
+                }
+                if (call.FunctionName == "ChangeAltitude") 
+                {
+                    object? alt = null;
+                    args?.TryGetValue("altitude", out alt);
+                    executedActions.Add($"climbing to {alt ?? "requested"} feet");
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"[FlightControlAgent] Error invoking {call.FunctionName}: {ex.Message}");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"[FlightControlAgent] BLOCKED hallucinated tool call: {call.FunctionName}");
+        }
+    }
 
     var content = "";
-
-    // TRUTH GUARD: Check history for SUCCESSFUL tool results
-    var toolMessages = history.Where(m => m.Role == AuthorRole.Tool).ToList();
-    var successfulResults = toolMessages.Where(m => !m.Content?.Contains("Error", StringComparison.OrdinalIgnoreCase) ?? false).ToList();
-    
-    if (toolMessages.Any(m => m.Content?.Contains("Error", StringComparison.OrdinalIgnoreCase) == true))
+    if (executedActions.Count > 0)
     {
-        var error = toolMessages.First(m => m.Content?.Contains("Error", StringComparison.OrdinalIgnoreCase) == true).Content;
-        content = $"I encountered an issue: {error}.";
-    }
-    else if (successfulResults.Count > 0)
-    {
-        // PERFORMANCE: Human response in C# (ROBUST EXTRACTION FROM TOOL CALLS)
-        var actions = new List<string>();
-        
-        // Find all function calls that led to successful results
-        var toolCalls = history.SelectMany(m => m.Items).OfType<FunctionCallContent>().ToList();
-
-        foreach (var call in toolCalls)
-        {
-            var args = call.Arguments;
-            if (call.FunctionName == "NavigateTo") 
-            {
-                object? loc = null;
-                if (args != null && !args.TryGetValue("location", out loc)) args.TryGetValue("locationName", out loc);
-                actions.Add($"setting course for {loc ?? "the target"}");
-            }
-            if (call.FunctionName == "ChangeSpeed") 
-            {
-                object? speed = null;
-                args?.TryGetValue("speed", out speed);
-                actions.Add($"adjusting speed to {speed ?? "requested"} knots");
-            }
-            if (call.FunctionName == "ChangeAltitude") 
-            {
-                object? alt = null;
-                args?.TryGetValue("altitude", out alt);
-                actions.Add($"climbing to {alt ?? "requested"} feet");
-            }
-        }
-
-        if (actions.Count > 0)
-        {
-            var distinctActions = actions.Distinct().ToList();
-            var summary = string.Join(", ", distinctActions);
-            summary = char.ToUpper(summary[0]) + summary.Substring(1);
-            content = $"{summary}.";
-        }
-        else 
-        {
-            content = "Flight parameters have been updated.";
-        }
+        var summary = string.Join(", ", executedActions.Distinct());
+        summary = char.ToUpper(summary[0]) + summary.Substring(1);
+        content = $"{summary}.";
     }
     else
     {

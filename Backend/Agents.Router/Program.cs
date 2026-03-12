@@ -20,12 +20,12 @@ app.MapPost("/route", async ([FromBody] string message, Kernel kernel) =>
 {
     var chatSvc = kernel.GetRequiredService<IChatCompletionService>();
     var history = new ChatHistory();
-    history.AddSystemMessage("You are the Tier 1 Router Agent. Decisions: [FlightControl, MissionControl, Payload].\n" +
+    history.AddSystemMessage("You are the Tier 1 Router Agent. Decisions: [\"FlightControl\", \"MissionControl\", \"Payload\"].\n" +
                            "ROUTING RULES:\n" +
                            "1. For navigation (fly, go, return, home, speed, altitude), ALWAYS use [\"FlightControl\", \"Payload\"].\n" +
                            "2. For map management (create, add, delete, remove, clear, points, zones), use [\"MissionControl\"].\n" +
                            "3. CRITICAL: DO NOT use MissionControl for flight commands unless it's explicitly to CREATE or DELETE a point/zone.\n" +
-                           "Return ONLY a JSON string array of required agents.");
+                           "4. CRITICAL: Return ONLY a JSON string array of required agents (e.g. [\"FlightControl\"]). DO NOT include any other text, explanation, or extra JSON fields. If multiple agents are needed, return them in one array.");
     history.AddUserMessage(message);
 
     var response = await chatSvc.GetChatMessageContentAsync(history);

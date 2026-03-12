@@ -23,11 +23,11 @@ public class FlightTools
         _httpClient.BaseAddress = new Uri(bffUrl);
     }
 
-    [KernelFunction, Description("Command the UAV to fly to an EXISTING named point on the map. This tool is for flight control. Automatically calculates optimal path if obstacles (No-Fly Zones) are present.")]
+    [KernelFunction, Description("Fly the UAV to a named point (e.g., 'Home', 'Target Alpha').")]
     public async Task<string> NavigateTo(
-        [Description("The name of an already defined point to fly to (e.g., 'Home', 'Target Alpha')."), Required] 
+        [Description("The exact name of the destination point."), Required] 
         string location,
-        [Description("Optional target altitude in feet. If provided, pathfinding will account for obstacles at this altitude.")]
+        [Description("Optional altitude in feet.")]
         int? targetAltitude = null)
     {
         try
@@ -116,9 +116,9 @@ public class FlightTools
         }
     }
 
-    [KernelFunction, Description("Change the UAV's target speed in knots.")]
+    [KernelFunction, Description("Set the UAV speed in knots.")]
     public async Task<string> ChangeSpeed(
-        [Description("Target speed in knots (e.g., 150)."), Required]int speed)
+        [Description("Speed in knots."), Required]int speed)
     {
         try
         {
@@ -142,9 +142,9 @@ public class FlightTools
         }
     }
 
-    [KernelFunction, Description("Change the UAV's target altitude in feet.")]
+    [KernelFunction, Description("Set the UAV altitude in feet.")]
     public async Task<string> ChangeAltitude(
-        [Description("Target altitude in feet (e.g., 5000)."), Required] int altitude)
+        [Description("Altitude in feet."), Required] int altitude)
     {
         try
         {

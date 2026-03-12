@@ -29,53 +29,61 @@ app.MapPost("/execute", async ([FromBody] string message, Kernel kernel) =>
     var chatSvc = kernel.GetRequiredService<IChatCompletionService>();
     var history = new ChatHistory();
     
-    history.AddSystemMessage("You are the Payload Agent. Available Tools: [PointPayload, ResetPayload].\n" +
-                           "MISSION: Lock the camera gimbal on any location mentioned in the user's command.\n" +
-                           "MANDATE: If a location (Home, Target A, etc.) is mentioned, you MUST call PointPayload for that location.\n" +
-                           "MANDATE: If 'reset' or 're-calibrate' is mentioned, you MUST call ResetPayload.\n" +
-                           "CONFIRMATION: Your primary job is tool execution. C# will handle the natural language confirmation.");
+    history.AddSystemMessage("DANGER: DO NOT CALL ResetPayload unless the user message contains the word 'reset'.\n" +
+                           "INSTRUCTION: Call PointPayload ONLY for location names (e.g. 'Target A').");
+
     history.AddUserMessage(message);
 
-    var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto() };
+    // STABILITY: Disable auto-invocation to manually filter tool calls
+    var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(autoInvoke: false) };
     
-    // SINGLE PASS: Trigger tool execution.
-    await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
-
-    var content = "";
-
-    // TRUTH GUARD: Check history for SUCCESSFUL tool results.
-    var toolMessages = history.Where(m => m.Role == AuthorRole.Tool).ToList();
-    var successfulResults = toolMessages.Where(m => !m.Content?.Contains("Error", StringComparison.OrdinalIgnoreCase) ?? false).ToList();
+    // 1. Get tool choices from LLM
+    var response = await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
     
-    if (successfulResults.Count > 0)
+    // 2. Extract and Filter tool calls
+    var toolCalls = response.Items.OfType<FunctionCallContent>().ToList();
+    var executedActions = new List<string>();
+
+    foreach (var call in toolCalls)
     {
-        // PERFORMANCE: Human response in C# (ROBUST EXTRACTION)
-        var actions = new List<string>();
-        var toolCalls = history.SelectMany(m => m.Items).OfType<FunctionCallContent>().ToList();
+        bool allowed = true;
+        if (call.FunctionName == "ResetPayload" && !message.Contains("reset", StringComparison.OrdinalIgnoreCase)) allowed = false;
+        if (call.FunctionName == "PointPayload" && !Regex.IsMatch(message, @"home|target|alpha|beta|A|B", RegexOptions.IgnoreCase)) allowed = false;
 
-        foreach (var call in toolCalls)
+        if (allowed)
         {
-            var args = call.Arguments;
-            if (call.FunctionName == "PointPayload")
+            try 
             {
-                object? loc = null;
-                if (args != null && !args.TryGetValue("location", out loc)) args.TryGetValue("locationName", out loc);
-                actions.Add($"I've locked the camera gimbal on {loc ?? "the target"} for you.");
+                var result = await call.InvokeAsync(kernel);
+                
+                // Collect for summary
+                var args = call.Arguments;
+                if (call.FunctionName == "PointPayload")
+                {
+                    object? loc = null;
+                    if (args != null && !args.TryGetValue("location", out loc)) args.TryGetValue("locationName", out loc);
+                    executedActions.Add($"I've locked the camera gimbal on {loc ?? "the target"} for you.");
+                }
+                else if (call.FunctionName == "ResetPayload")
+                {
+                    executedActions.Add("Sensors have been reset and calibrated.");
+                }
             }
-            else if (call.FunctionName == "ResetPayload")
+            catch (Exception ex)
             {
-                actions.Add("Sensors have been reset and calibrated.");
+                Console.WriteLine($"[PayloadAgent] Error invoking {call.FunctionName}: {ex.Message}");
             }
         }
-
-        if (actions.Count > 0)
+        else
         {
-            content = string.Join(" ", actions.Distinct());
+            Console.WriteLine($"[PayloadAgent] BLOCKED hallucinated tool call: {call.FunctionName}");
         }
     }
-    else if (toolMessages.Any(m => m.Content?.Contains("Error", StringComparison.OrdinalIgnoreCase) == true))
+
+    var content = "";
+    if (executedActions.Count > 0)
     {
-        content = "I'm sorry, I encountered a technical issue while attempting to lock the sensor.";
+        content = string.Join(" ", executedActions.Distinct());
     }
     else
     {
