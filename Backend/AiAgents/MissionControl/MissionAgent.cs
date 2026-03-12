@@ -14,6 +14,7 @@ public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools)
 
         var history = new ChatHistory();
         history.AddSystemMessage("You are the Mission Control Agent. Available Tools: [CreatePoint, ListPoints, DeletePointByName, CreateRectangleZone, CreatePolygonZone, ListNoFlyZones, DeleteNoFlyZoneByName, DeleteAllPoints, DeleteAllNoFlyZones].\n" +
+                               "RULE: Resolve descriptive names (e.g. 'the test entity') to exact stored names (e.g. 'test') before calling tools.\n" +
                                "RULE: You MUST use the available tools to perform actions based on the user's intent.\n" +
                                "RULE: If the user intent is NOT about points or no-fly zones, DO NOT call any tools and return an empty string.\n" +
                                "RESPONSE RULE: Return ONLY a technical confirmation string after calling a tool. If no tool is called, return an empty string.");

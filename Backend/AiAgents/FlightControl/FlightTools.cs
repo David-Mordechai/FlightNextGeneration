@@ -90,7 +90,7 @@ public class FlightTools
 
                 _logger.LogInformation("Path clear. Flying directly to {Location} (Lat: {Latitude}, Lon: {Longitude}).", location,
                     targetCoords.Value.Lat, targetCoords.Value.Lng);
-                return $"Path clear. Flying directly to {location}.";
+                return $"Flying to {location}.";
             }
             else
             {
@@ -107,7 +107,7 @@ public class FlightTools
                 if (!execRes.IsSuccessStatusCode) return "Failed to execute optimal path.";
 
                 _logger.LogInformation("Obstacles detected. Optimal route calculated and executing to {Location}.", location);
-                return $"Obstacles detected (No-Fly Zones). optimal route calculated and executing to {location}.";
+                return $"Executing optimal route to {location} (avoiding NFZs).";
             }
         }
         catch (Exception ex)
@@ -133,8 +133,8 @@ public class FlightTools
             if (!res.IsSuccessStatusCode)
                 return $"Fail to update to speed {speed} kts.";
             
-            _logger.LogInformation("Acknowledged. Adjusting speed to {Speed} kts.", speed);
-            return $"Acknowledged. Adjusting speed to {speed} kts.";
+            _logger.LogInformation("Adjusting speed to {Speed} kts.", speed);
+            return $"Speed set to {speed} kts.";
         }
         catch (Exception ex)
         {
@@ -159,8 +159,8 @@ public class FlightTools
             if (!res.IsSuccessStatusCode)
                 return $"Fail to update to altitude {altitude} feet.";
             
-            _logger.LogInformation("Acknowledged. Changing altitude to {Altitude} ft.", altitude);
-            return $"Acknowledged. Changing altitude to {altitude} feet.";
+            _logger.LogInformation("Changing altitude to {Altitude} ft.", altitude);
+            return $"Altitude set to {altitude} ft.";
         }
         catch (Exception ex)
         {

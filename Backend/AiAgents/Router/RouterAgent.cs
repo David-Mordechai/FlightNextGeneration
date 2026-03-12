@@ -1,5 +1,6 @@
 using Microsoft.SemanticKernel;
 using Microsoft.SemanticKernel.ChatCompletion;
+using Microsoft.SemanticKernel.Connectors.OpenAI;
 using System.Text.Json;
 
 namespace AiAgents.Router;
@@ -9,18 +10,26 @@ public class RouterAgent(IChatCompletionService chatSvc)
     public async Task<List<string>> ClassifyAsync(string message)
     {
         var history = new ChatHistory();
-        history.AddSystemMessage("You are the Tier 1 Router Agent. Decisions: [\"FlightControl\", \"MissionControl\", \"Payload\"].\n" +
-                               "ROUTING RULES:\n" +
-                               "1. For navigation (fly, go, return, home, speed, altitude), ALWAYS use [\"FlightControl\", \"Payload\"].\n" +
-                               "2. For map management (create, add, delete, remove, clear, points, zones), use [\"MissionControl\"].\n" +
-                               "3. CRITICAL: DO NOT use MissionControl for flight commands unless it's explicitly to CREATE or DELETE a point/zone.\n" +
-                               "4. CRITICAL: Return ONLY a JSON string array of required agents (e.g. [\"FlightControl\"]). DO NOT include any other text, explanation, or extra JSON fields.");
+        history.AddSystemMessage("# MISSION\n" +
+                               "Identify required tactical domains. Return ONLY a JSON array.\n\n" +
+                               "# EXAMPLES\n" +
+                               "User: fly home. Result: [\"FlightControl\"]\n" +
+                               "User: point camera A. Result: [\"Payload\"]\n" +
+                               "User: create point Alpha. Result: [\"MissionControl\"]\n" +
+                               "User: remove point Alpha. Result: [\"MissionControl\"]\n\n" +
+                               "# RULES\n" +
+                               "- FlightControl: Navigation, speed, altitude.\n" +
+                               "- Payload: Camera and sensors.\n" +
+                               "- MissionControl: ADDING or REMOVING points/zones from the map.\n" +
+                               "- Output the JSON array and STOP.");
+        
         history.AddUserMessage(message);
 
-        var response = await chatSvc.GetChatMessageContentAsync(history);
+        var settings = new OpenAIPromptExecutionSettings { MaxTokens = 50 };
+        var response = await chatSvc.GetChatMessageContentAsync(history, settings);
         var content = response.Content?.Trim() ?? "";
         
-        Console.WriteLine($"[RouterAgent] Raw Classification: {content}");
+        Console.WriteLine($"[RouterAgent] Thought: {content}");
 
         var targets = new List<string>();
         if (content.Contains("[") && content.Contains("]"))
@@ -35,13 +44,15 @@ public class RouterAgent(IChatCompletionService chatSvc)
             catch { }
         }
 
-        if (targets.Count == 0)
+        // Robust Fallbacks for common model hallucinations
+        if (targets.Count == 0 || content.Contains("Deletion", StringComparison.OrdinalIgnoreCase) || content.Contains("Remove", StringComparison.OrdinalIgnoreCase))
         {
             if (content.Contains("FlightControl", StringComparison.OrdinalIgnoreCase)) targets.Add("FlightControl");
-            if (content.Contains("MissionControl", StringComparison.OrdinalIgnoreCase)) targets.Add("MissionControl");
+            if (content.Contains("MissionControl", StringComparison.OrdinalIgnoreCase) || content.Contains("Deletion", StringComparison.OrdinalIgnoreCase)) 
+                if (!targets.Contains("MissionControl")) targets.Add("MissionControl");
             if (content.Contains("Payload", StringComparison.OrdinalIgnoreCase)) targets.Add("Payload");
         }
 
-        return targets;
+        return targets.Distinct().ToList();
     }
 }

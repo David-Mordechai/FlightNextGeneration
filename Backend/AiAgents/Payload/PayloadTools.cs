@@ -45,7 +45,7 @@ public class PayloadTools
             if (!res.IsSuccessStatusCode) return $"Fail to point camera at {location}.";
 
             _logger.LogInformation("Camera gimbal locked to {Location} (Alt: {Alt}m).", location, targetCoords.Value.Alt);
-            return $"Camera gimbal locked to {location}. Sensor footprint updated on map.";
+            return $"Camera gimbal locked to {location}.";
         }
         catch (Exception ex)
         {
@@ -59,7 +59,7 @@ public class PayloadTools
     {
         try
         {
-            var res = await _httpClient.PostAsync("api/mission/payload/reset", null);
+            var res = await _httpClient.GetAsync("api/mission/payload/reset");
             if (!res.IsSuccessStatusCode) return "Fail to reset camera gimbal.";
 
             _logger.LogInformation("Camera gimbal reset to scan mode.");

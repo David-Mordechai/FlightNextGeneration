@@ -20,11 +20,10 @@ builder.Services.AddSingleton<FlightTools>();
 builder.Services.AddSingleton<PayloadTools>();
 builder.Services.AddSingleton<MissionTools>();
 
-// 3. Register Shared AI Connection (One model instance for all agents)
+// 3. Register Shared AI Connection
 var ollamaOpenAiEndpoint = builder.Configuration["OllamaOpenAiEndpoint"] ?? "http://localhost:11434/v1";
 var modelId = builder.Configuration["OllamaModel"] ?? "llama3.2";
 
-// Register the Chat Completion Service as a singleton so all agents share the same "warm" connection
 builder.Services.AddOpenAIChatCompletion(modelId, endpoint: new Uri(ollamaOpenAiEndpoint), apiKey: "ignore");
 
 // 4. Register In-Process Agent Services
@@ -48,9 +47,9 @@ app.MapPost("/execute", async ([FromBody] string message,
     var targets = await router.ClassifyAsync(message);
     Console.WriteLine($"[AiAgents] Targets: {string.Join(", ", targets)}");
 
-    if (targets.Count == 0) return Results.Ok(new { Response = "No action required." });
+    if (targets.Count == 0) return Results.Ok(new { Response = "I'm not sure how to help with that request. Please try again." });
 
-    // Phase 2: Parallel Execution (Each agent uses its own isolated Kernel)
+    // Phase 2: Parallel Execution
     var responses = new List<string>();
     var tasks = targets.Select(async target =>
     {
@@ -70,7 +69,12 @@ app.MapPost("/execute", async ([FromBody] string message,
 
     await Task.WhenAll(tasks);
 
+    // Phase 3: Final Consolidation
     var finalResult = string.Join(". ", responses.Distinct().Select(r => r.Trim().TrimEnd('.'))) + ".";
+    
+    // Ensure we don't return just a dot
+    if (finalResult == ".") finalResult = "Action acknowledged and executed.";
+
     var duration = (DateTime.UtcNow - startTime).TotalSeconds;
     Console.WriteLine($"[AiAgents] END Request. Duration: {duration:F2}s. Result: {finalResult}");
 

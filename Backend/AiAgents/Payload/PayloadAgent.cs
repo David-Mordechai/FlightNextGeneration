@@ -14,8 +14,10 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools)
         kernel.Plugins.AddFromObject(tools, "Payload");
 
         var history = new ChatHistory();
-        history.AddSystemMessage("DANGER: DO NOT CALL ResetPayload unless the user message contains the word 'reset'.\n" +
-                               "INSTRUCTION: Call PointPayload ONLY for location names (e.g. 'Target A').");
+        history.AddSystemMessage("You are a tactical sensor operator.\n" +
+                               "INSTRUCTION: Call PointPayload ONLY for exact location names (e.g. 'Target A', 'Home').\n" +
+                               "CRITICAL: Do not truncate names. If the user says 'target a', use 'Target A'.\n" +
+                               "CRITICAL: If a tool returns an error, report that error to the user.");
         history.AddUserMessage(message);
 
         var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(autoInvoke: false) };
@@ -26,7 +28,6 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools)
 
         foreach (var call in toolCalls)
         {
-            // Robust check for function name (handles Plugin-Function format)
             var funcName = call.FunctionName;
             if (funcName.Contains("-")) funcName = funcName.Split('-').Last();
 
@@ -38,22 +39,18 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools)
             {
                 try 
                 {
-                    await call.InvokeAsync(kernel);
-                    var args = call.Arguments;
-                    if (funcName == "PointPayload")
-                    {
-                        object? loc = null;
-                        if (args != null && !args.TryGetValue("location", out loc)) args.TryGetValue("locationName", out loc);
-                        executedActions.Add($"I've locked the camera gimbal on {loc ?? "the target"} for you.");
-                    }
-                    else if (funcName == "ResetPayload")
-                    {
-                        executedActions.Add("Sensors have been reset and calibrated.");
-                    }
+                    var result = await call.InvokeAsync(kernel);
+                    
+                    // Extract actual string content from the FunctionResultContent
+                    var resultStr = "";
+                    if (result is FunctionResultContent frc) resultStr = frc.Result?.ToString() ?? "";
+                    else resultStr = result.ToString() ?? "";
+                    
+                    executedActions.Add(resultStr);
                 }
                 catch (Exception ex)
                 {
-                    Console.WriteLine($"[PayloadAgent] Error invoking {call.FunctionName}: {ex.Message}");
+                    executedActions.Add($"Failed to execute {funcName}: {ex.Message}");
                 }
             }
         }
