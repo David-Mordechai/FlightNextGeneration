@@ -1,6 +1,0 @@
-@Agents.Payload_HostAddress = http://localhost:5219
-
-GET {{Agents.Payload_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

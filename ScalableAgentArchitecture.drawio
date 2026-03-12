@@ -1,35 +1,35 @@
 <mxfile host="Electron" agent="Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) draw.io/28.2.5 Chrome/138.0.7204.251 Electron/37.6.1 Safari/537.36" version="28.2.5">
-  <diagram id="scalable_arch" name="Scalable Agent Architecture">
+  <diagram id="scalable_arch" name="Unified Agent Architecture">
     <mxGraphModel dx="1426" dy="843" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="1169" pageHeight="827" background="#ffffff" math="0" shadow="0">
       <root>
         <mxCell id="0" />
         <mxCell id="1" parent="0" />
-        <mxCell id="layer1" value="Orchestration &amp; Routing Layer (Tier 1)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f8ece0;strokeColor=#b85450;strokeWidth=2;dashed=1;verticalAlign=top;fontStyle=1;fontSize=16;spacingTop=10;" parent="1" vertex="1">
-          <mxGeometry x="80" y="240" width="1000" height="200" as="geometry" />
+        <mxCell id="unified_process" value="Unified AiAgents System (.NET 10 Process)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#f5f5f5;strokeColor=#666666;strokeWidth=3;dashed=0;verticalAlign=top;fontStyle=1;fontSize=18;spacingTop=15;fontColor=#333333;" parent="1" vertex="1">
+          <mxGeometry x="80" y="240" width="1000" height="480" as="geometry" />
         </mxCell>
-        <mxCell id="layer2" value="Specialized Agent &amp; Native Tool Layer (Tier 2)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e6f0ff;strokeColor=#6c8ebf;strokeWidth=2;dashed=1;verticalAlign=top;fontStyle=1;fontSize=16;spacingTop=10;" parent="1" vertex="1">
-          <mxGeometry x="80" y="480" width="1000" height="250" as="geometry" />
+        <mxCell id="llm_connection" value="Shared Ollama Connection&#xa;(IChatCompletionService)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#d5e8d4;strokeColor=#82b366;strokeWidth=2;fontStyle=1;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="435" y="280" width="300" height="60" as="geometry" />
         </mxCell>
         <mxCell id="user" value="User / Client App" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
-          <mxGeometry x="480" y="40" width="200" height="60" as="geometry" />
+          <mxGeometry x="485" y="40" width="200" height="60" as="geometry" />
         </mxCell>
         <mxCell id="bff" value="API Gateway / BFF&#xa;(SignalR / REST)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#dae8fc;strokeColor=#6c8ebf;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
-          <mxGeometry x="480" y="140" width="200" height="60" as="geometry" />
+          <mxGeometry x="485" y="140" width="200" height="60" as="geometry" />
         </mxCell>
-        <mxCell id="router" value="Router Agent (GLM-4)&#xa;(Intent Analysis &amp; Delegation)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
-          <mxGeometry x="480" y="320" width="200" height="80" as="geometry" />
+        <mxCell id="router" value="In-Process Router Agent&#xa;(Intent Classification)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+          <mxGeometry x="485" y="380" width="200" height="80" as="geometry" />
         </mxCell>
-        <mxCell id="agent_mission" value="Mission Control Agent&#xa;(Planning, Zones, Points)&#xa;+ Native Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+        <mxCell id="agent_mission" value="Mission Agent&#xa;(Isolated Kernel)&#xa;Planning &amp; DB Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
           <mxGeometry x="140" y="550" width="220" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="agent_flight" value="Flight Control Agent&#xa;(Nav, Alt, Speed)&#xa;+ Native Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
-          <mxGeometry x="470" y="550" width="220" height="120" as="geometry" />
+        <mxCell id="agent_flight" value="Flight Agent&#xa;(Isolated Kernel)&#xa;Nav &amp; Physics Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+          <mxGeometry x="475" y="550" width="220" height="120" as="geometry" />
         </mxCell>
-        <mxCell id="agent_payload" value="Payload Agent&#xa;(Sensors, Gimbal Lock)&#xa;+ Native Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
+        <mxCell id="agent_payload" value="Payload Agent&#xa;(Isolated Kernel)&#xa;Gimbal &amp; Sensor Tools" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#e1d5e7;strokeColor=#9673a6;strokeWidth=2;fontStyle=1;fontSize=14;" parent="1" vertex="1">
           <mxGeometry x="800" y="550" width="220" height="120" as="geometry" />
         </mxCell>
         <mxCell id="c4i_svc" value="C4I Entities Service&#xa;(PostGIS Database)" style="rounded=1;whiteSpace=wrap;html=1;fillColor=#fff2cc;strokeColor=#d6b656;strokeWidth=2;fontStyle=1;fontSize=14;" vertex="1" parent="1">
-          <mxGeometry x="470" y="780" width="220" height="60" as="geometry" />
+          <mxGeometry x="475" y="780" width="220" height="60" as="geometry" />
         </mxCell>
         <mxCell id="e1" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="user" target="bff" edge="1">
           <mxGeometry relative="1" as="geometry" />
@@ -37,39 +37,37 @@
         <mxCell id="e2" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="bff" target="router" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e4" value="Delegate Intent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_mission" edge="1">
+        <mxCell id="e4" value="In-Process Call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_mission" edge="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="250" y="360" />
+              <mxPoint x="250" y="420" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e5" value="Delegate Intent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_flight" edge="1">
+        <mxCell id="e5" value="In-Process Call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_flight" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e6" value="Delegate Intent" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_payload" edge="1">
+        <mxCell id="e6" value="In-Process Call" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="router" target="agent_payload" edge="1">
           <mxGeometry relative="1" as="geometry">
             <Array as="points">
-              <mxPoint x="910" y="360" />
+              <mxPoint x="910" y="420" />
             </Array>
           </mxGeometry>
         </mxCell>
-        <mxCell id="e11" value="Read/Write Entities" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_mission" target="c4i_svc" edge="1">
+        <mxCell id="e11" value="External Tools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_mission" target="c4i_svc" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e12" value="Geocoding &amp; Paths" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_flight" target="c4i_svc" edge="1">
+        <mxCell id="e12" value="External Tools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_flight" target="c4i_svc" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e13" value="Geocoding" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_payload" target="c4i_svc" edge="1">
+        <mxCell id="e13" value="External Tools" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;" parent="1" source="agent_payload" target="c4i_svc" edge="1">
           <mxGeometry relative="1" as="geometry" />
         </mxCell>
-        <mxCell id="e14" value="Technical Confirmations" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=2;endArrow=classic;exitX=0.5;exitY=0;exitDx=0;exitDy=0;" edge="1" parent="1" source="agent_flight" target="bff">
-          <mxGeometry relative="1" as="geometry">
-            <Array as="points">
-              <mxPoint x="580" y="220" />
-              <mxPoint x="580" y="220" />
-            </Array>
-          </mxGeometry>
+        <mxCell id="llm_link" style="edgeStyle=orthogonalEdgeStyle;rounded=1;orthogonalLoop=1;jettySize=auto;html=1;strokeWidth=1;dashed=1;endArrow=none;" edge="1" parent="1" source="llm_connection" target="router">
+          <mxGeometry relative="1" as="geometry" />
+        </mxCell>
+        <mxCell id="perf_note" value="PERFORMANCE:&#xa;88s → 16s&#xa;(82% Gain)" style="text;html=1;strokeColor=none;fillColor=none;align=center;verticalAlign=middle;whiteSpace=wrap;rounded=0;fontStyle=1;fontColor=#FF0000;fontSize=14;" vertex="1" parent="1">
+          <mxGeometry x="950" y="40" width="120" height="60" as="geometry" />
         </mxCell>
       </root>
     </mxGraphModel>

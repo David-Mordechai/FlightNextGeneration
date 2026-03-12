@@ -3,8 +3,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
 using Microsoft.SemanticKernel;
+using AiAgents.Shared;
 
-namespace Agents.FlightControl;
+namespace AiAgents.FlightControl;
 
 public class FlightTools
 {

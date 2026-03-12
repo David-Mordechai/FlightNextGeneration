@@ -1,6 +1,0 @@
-@Agents.Router_HostAddress = http://localhost:5265
-
-GET {{Agents.Router_HostAddress}}/weatherforecast/
-Accept: application/json
-
-###

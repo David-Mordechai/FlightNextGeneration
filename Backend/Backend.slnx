@@ -1,8 +1,5 @@
 <Solution>
-  <Project Path="Agents.FlightControl/Agents.FlightControl.csproj" />
-  <Project Path="Agents.MissionControl/Agents.MissionControl.csproj" />
-  <Project Path="Agents.Payload/Agents.Payload.csproj" />
-  <Project Path="Agents.Router/Agents.Router.csproj" />
+  <Project Path="AiAgents/AiAgents.csproj" />
   <Project Path="Bff.Service/Bff.Service.csproj" Id="a6c188b3-5b4b-445a-a1df-15e03fba6786" />
   <Project Path="C4IEntities/C4IEntities.csproj" />
   <Project Path="docker-compose.dcproj" Id="45300f81-5420-449a-814d-905186716075">

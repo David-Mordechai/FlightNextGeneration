@@ -3,8 +3,9 @@ using System.ComponentModel.DataAnnotations;
 using System.Text;
 using System.Text.Json;
 using Microsoft.SemanticKernel;
+using AiAgents.Shared;
 
-namespace Agents.Payload;
+namespace AiAgents.Payload;
 
 public class PayloadTools
 {

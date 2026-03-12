@@ -11,7 +11,45 @@ services:
     volumes:
       - postgres_data:/var/lib/postgresql/data
 
-  aspire-dashboard:
+  c4ientities:
+    build:
+      context: .
+      dockerfile: C4IEntities/Dockerfile
+    environment:
+      - ConnectionStrings__DefaultConnection=Host=postgis;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
+    ports:
+      - "5293:8080"
+    depends_on:
+      - postgis
+
+  bff.service:
+    build:
+      context: .
+      dockerfile: Bff.Service/Dockerfile
+    environment:
+      - AiAgentsUrl=http://ai-agents:8080
+      - C4IServiceUrl=http://c4ientities:8080
+      - GoogleApiKey=${GOOGLE_API_KEY}
+      - OllamaUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
+    ports:
+      - "5135:8080"
+    depends_on:
+      - c4ientities
+      - ai-agents
+
+  ai-agents:
+    build:
+      context: .
+      dockerfile: AiAgents/Dockerfile
+    environment:
+      - OllamaOpenAiEndpoint=${OLLAMA_URL:-http://host.docker.internal:11434}/v1
+      - OllamaModel=${OLLAMA_MODEL:-llama3.2}
+      - C4IServiceUrl=http://c4ientities:8080
+      - BffServiceUrl=http://bff.service:8080
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+  flight_aspire_dashboard:
     image: mcr.microsoft.com/dotnet/nightly/aspire-dashboard:latest
     container_name: flight_aspire_dashboard
     ports:
@@ -19,104 +57,7 @@ services:
       - "4317:4317"
       - "4318:4318"
     environment:
-      - DOTNET_DASHBOARD_UNSECURED_ALLOW_ANONYMOUS=true
-      - DOTNET_DASHBOARD_OTLP_ENDPOINT_URL=http://0.0.0.0:4317
-      - DOTNET_DASHBOARD_OTLP_HTTP_ENDPOINT_URL=http://0.0.0.0:4318
-
-  bff.service:
-    image: ${DOCKER_REGISTRY-}bffservice
-    build:
-      context: .
-      dockerfile: Bff.Service/Dockerfile
-    depends_on:
-      - c4ientities
-      - agents.router
-      - agents.flightcontrol
-      - agents.missioncontrol
-      - agents.payload
-    ports:
-      - "5135:8080"
-    environment:
-      - OllamaUrl=${OLLAMA_URL:-http://host.docker.internal:11434}
-      - AIProvider=${AI_PROVIDER}
-      - OllamaModel=${OLLAMA_MODEL}
-      - OpenAIModelName=${OPENAI_MODEL_NAME}
-      - OpenAIKey=${OPENAI_KEY}
-      - GoogleGeminiModel=${GOOGLE_GEMINI_MODEL}
-      - GoogleGeminiKey=${GOOGLE_GEMINI_KEY}
-      - AgentsRouterUrl=http://agents.router:8080
-      - AgentsFlightUrl=http://agents.flightcontrol:8080
-      - AgentsMissionUrl=http://agents.missioncontrol:8080
-      - AgentsPayloadUrl=http://agents.payload:8080
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
-      - OTEL_SERVICE_NAME=flight-bff
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  c4ientities:
-    image: ${DOCKER_REGISTRY-}c4ientities
-    build:
-      context: .
-      dockerfile: C4IEntities/Dockerfile
-    depends_on:
-      - postgis
-      - aspire-dashboard
-    ports:
-      - "5293:8080"
-    environment:
-      - ConnectionStrings__DefaultConnection=Host=postgis;Database=${POSTGRES_DB};Username=${POSTGRES_USER};Password=${POSTGRES_PASSWORD}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=http://aspire-dashboard:4317
-      - OTEL_SERVICE_NAME=flight-c4i
-
-  agents.router:
-    image: ${DOCKER_REGISTRY-}agentsrouter
-    build:
-      context: .
-      dockerfile: Agents.Router/Dockerfile
-    environment:
-      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - RouterModel=${ROUTER_MODEL:-glm-4.7-flash:q8_0}
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  agents.flightcontrol:
-    image: ${DOCKER_REGISTRY-}agentsflightcontrol
-    build:
-      context: .
-      dockerfile: Agents.FlightControl/Dockerfile
-    environment:
-      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - FlightModel=${FLIGHT_MODEL:-ministral-3:3b}
-      - BffServiceUrl=http://bff.service:8080
-      - C4IServiceUrl=http://c4ientities:8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  agents.missioncontrol:
-    image: ${DOCKER_REGISTRY-}agentsmissioncontrol
-    build:
-      context: .
-      dockerfile: Agents.MissionControl/Dockerfile
-    environment:
-      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - MissionModel=${MISSION_MODEL:-ministral-3:3b}
-      - BffServiceUrl=http://bff.service:8080
-      - C4IServiceUrl=http://c4ientities:8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
-
-  agents.payload:
-    image: ${DOCKER_REGISTRY-}agentspayload
-    build:
-      context: .
-      dockerfile: Agents.Payload/Dockerfile
-    environment:
-      - OllamaOpenAiEndpoint=${OLLAMA_URL}/v1
-      - PayloadModel=${PAYLOAD_MODEL:-ministral-3:3b}
-      - BffServiceUrl=http://bff.service:8080
-      - C4IServiceUrl=http://c4ientities:8080
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+      - ASPIRE_ALLOW_UNAUTHENTICATED_ACCESS=true
 
 volumes:
   postgres_data:
