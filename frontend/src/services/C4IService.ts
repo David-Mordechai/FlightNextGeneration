@@ -80,12 +80,20 @@ export const c4iService = {
     },
 
     async createPoint(point: Point): Promise<Point> {
+        // Transform nested Point to flat PointDto
+        const dto = {
+            name: point.name,
+            type: point.type,
+            lat: point.location.coordinates[1],
+            lng: point.location.coordinates[0]
+        };
+
         const response = await fetch(POINTS_API_URL, {
             method: 'POST',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(point)
+            body: JSON.stringify(dto)
         });
         if (!response.ok) {
             throw new Error('Failed to create Point');
@@ -94,12 +102,20 @@ export const c4iService = {
     },
 
     async updatePoint(id: string, point: Point): Promise<void> {
+        // Transform nested Point to flat PointDto
+        const dto = {
+            name: point.name,
+            type: point.type,
+            lat: point.location.coordinates[1],
+            lng: point.location.coordinates[0]
+        };
+
         const response = await fetch(`${POINTS_API_URL}/${id}`, {
             method: 'PUT',
             headers: {
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify(point)
+            body: JSON.stringify(dto)
         });
         if (!response.ok) {
             throw new Error('Failed to update Point');
