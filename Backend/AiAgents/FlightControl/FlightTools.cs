@@ -37,9 +37,7 @@ public class FlightTools
     [KernelFunction, Description("Fly the UAV to a named point (e.g., 'Home', 'Target Alpha').")]
     public async Task<string> NavigateTo(
         [Description("The exact name of the destination point."), Required] 
-        string location,
-        [Description("Optional altitude in feet.")]
-        int? targetAltitude = null)
+        string location)
     {
         try
         {
@@ -59,7 +57,7 @@ public class FlightTools
             using var doc = JsonDocument.Parse(stateJson);
             var currentLat = doc.RootElement.GetProperty("lat").GetDouble();
             var currentLng = doc.RootElement.GetProperty("lng").GetDouble();
-            var currentAlt = targetAltitude ?? doc.RootElement.GetProperty("altitude").GetDouble();
+            var currentAlt = doc.RootElement.GetProperty("altitude").GetDouble();
 
             // 3. Calculate Path (Call C4I Service)
             var c4IUrl = _configuration["C4IServiceUrl"] ?? "http://c4ientities:8080";

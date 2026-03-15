@@ -16,6 +16,9 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools, No
 
         var history = new ChatHistory();
         history.AddSystemMessage("You are a tactical sensor operator.\n" +
+                               "# MULTI-TOOL EXTRACTION\n" +
+                               "The user may provide multiple instructions in a single request. You MUST call ALL relevant tools in one response.\n\n" +
+                               "# INSTRUCTIONS\n" +
                                "INSTRUCTION: Call PointPayload ONLY for exact location names (e.g. 'Target A', 'Home').\n" +
                                "CRITICAL: Do not truncate names. If the user says 'target a', use 'Target A'.\n" +
                                "CRITICAL: If a tool returns an error, report that error to the user.");
