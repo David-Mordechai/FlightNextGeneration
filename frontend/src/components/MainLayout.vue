@@ -132,7 +132,7 @@ const isSidebarOpen = ref(true);
          </div>
 
          <!-- 3. RIGHT CONTROL PANEL (Triple Stack) -->
-         <aside class="w-[450px] h-full bg-base-100 border-l border-white/10 flex flex-col overflow-hidden shadow-2xl z-20">
+         <aside class="w-[550px] h-full bg-base-100 border-l border-white/10 flex flex-col overflow-hidden shadow-2xl z-20">
             
             <!-- Top Section: Video (Edge-to-Edge) -->
             <div class="relative border-b border-white/5 bg-black flex-none">

@@ -68,3 +68,8 @@ POSTGRES_DB=flightdb
 - **McpServer.FlightControl**: AI Tool server (Model Context Protocol) for flight operations.
 - **docker-compose.yml**: Defines the services and infrastructure configuration.
 - **docker-compose.override.yml**: Defines development-specific settings (ports, volumes).
+
+
+[Service]
+Environment="OLLAMA_KEEP_ALIVE=24h"
+OLLAMA_NUM_PARALLEL=4

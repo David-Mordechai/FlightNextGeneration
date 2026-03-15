@@ -100,7 +100,7 @@ const handleMicUp = async () => {
             isTransient: true,
             isThinking: true,
             thinkingSteps: [],
-            isExpanded: true // Auto-expand when thinking starts
+            isExpanded: false // Start collapsed by default
         });
         scrollToBottom();
         await speakImmediate(`Analyzing request...`);
@@ -177,7 +177,7 @@ const sendMessage = async () => {
     isTransient: true,
     isThinking: true,
     thinkingSteps: [],
-    isExpanded: true // Auto-expand when thinking starts
+    isExpanded: false // Start collapsed by default
   });
   scrollToBottom();
   await speakImmediate(`Analyzing request...`);
@@ -213,7 +213,7 @@ const toggleExpand = (msg: Message) => {
     
     <!-- Chat Content -->
     <div class="flex-1 flex flex-col min-h-0">
-        <div ref="chatContainer" class="flex-1 overflow-y-auto px-5 py-4 space-y-4 custom-scrollbar">
+        <div ref="chatContainer" class="flex-1 overflow-y-auto overflow-x-hidden px-5 py-4 space-y-4 custom-scrollbar">
             <div v-for="(msg, index) in messages" :key="index" class="flex flex-col gap-1">
                 <div class="flex items-center gap-2">
                     <span class="text-[10px] font-black uppercase tracking-widest px-1.5 py-0.5 rounded border border-white/10 bg-white/5" 
@@ -249,7 +249,7 @@ const toggleExpand = (msg: Message) => {
                         <div v-for="(step, sIdx) in msg.thinkingSteps" :key="sIdx" class="text-[11px] font-mono leading-tight flex gap-2 items-start group">
                             <span class="text-accent/70 font-bold shrink-0 min-w-[80px]">[{{ step.agent }}]</span>
                             <span class="text-primary/80 italic shrink-0">{{ step.step }}:</span>
-                            <span class="text-white/60 flex-1">{{ step.content }}</span>
+                            <span class="text-white/60 flex-1 break-all">{{ step.content }}</span>
                             <span v-if="step.duration != null" class="text-[9px] text-accent/40 font-bold shrink-0 ml-auto mr-2">
                                 {{ step.duration.toFixed(2) }}s
                             </span>
