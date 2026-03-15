@@ -9,6 +9,8 @@ interface ThinkingStep {
     agent: string;
     step: string;
     content: string;
+    timestamp: number;
+    duration?: number;
 }
 
 interface Message {
@@ -109,11 +111,11 @@ const handleMicUp = async () => {
 
 onMounted(async () => {
   // Listen for AI Traces
-  signalRService.onReceiveAiTrace((correlationId, agent, step, content) => {
+  signalRService.onReceiveAiTrace((correlationId, agent, step, content, duration) => {
     const msg = messages.value.find(m => m.id === correlationId && m.user === 'Mission Control');
     if (msg) {
         if (!msg.thinkingSteps) msg.thinkingSteps = [];
-        msg.thinkingSteps.push({ agent, step, content });
+        msg.thinkingSteps.push({ agent, step, content, timestamp: Date.now(), duration });
         scrollToBottom();
     }
   });
@@ -244,10 +246,13 @@ const toggleExpand = (msg: Message) => {
                         <div v-if="!msg.thinkingSteps || msg.thinkingSteps.length === 0" class="text-[10px] text-white/20 italic">
                             Waiting for agent reports...
                         </div>
-                        <div v-for="(step, sIdx) in msg.thinkingSteps" :key="sIdx" class="text-[11px] font-mono leading-tight flex gap-2">
+                        <div v-for="(step, sIdx) in msg.thinkingSteps" :key="sIdx" class="text-[11px] font-mono leading-tight flex gap-2 items-start group">
                             <span class="text-accent/70 font-bold shrink-0 min-w-[80px]">[{{ step.agent }}]</span>
                             <span class="text-primary/80 italic shrink-0">{{ step.step }}:</span>
-                            <span class="text-white/60">{{ step.content }}</span>
+                            <span class="text-white/60 flex-1">{{ step.content }}</span>
+                            <span v-if="step.duration != null" class="text-[9px] text-accent/40 font-bold shrink-0 ml-auto mr-2">
+                                {{ step.duration.toFixed(2) }}s
+                            </span>
                         </div>
                     </div>
                 </div>

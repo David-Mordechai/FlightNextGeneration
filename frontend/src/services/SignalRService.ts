@@ -63,7 +63,7 @@ class SignalRService {
     this.connection.on("ReceiveChatMessage", callback);
   }
 
-  public onReceiveAiTrace(callback: (correlationId: string, agent: string, step: string, content: string) => void): void {
+  public onReceiveAiTrace(callback: (correlationId: string, agent: string, step: string, content: string, duration?: number) => void): void {
     this.connection.on("ReceiveAiTrace", callback);
   }
 

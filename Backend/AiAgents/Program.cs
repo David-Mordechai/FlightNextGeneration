@@ -80,9 +80,6 @@ app.MapPost("/execute", async (HttpContext context, [FromBody] string message,
     var duration = (DateTime.UtcNow - startTime).TotalSeconds;
     Console.WriteLine($"[AiAgents] END Request. Duration: {duration:F2}s. Result: {finalResult}");
 
-    // Final Trace
-    await notifier.NotifyAsync(correlationId, "System", "Final Result", finalResult);
-
     return Results.Ok(new { Response = finalResult, Duration = duration });
 });
 

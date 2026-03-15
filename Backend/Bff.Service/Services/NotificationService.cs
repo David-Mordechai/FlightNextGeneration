@@ -5,12 +5,12 @@ namespace Bff.Service.Services;
 
 public class NotificationService(IHubContext<FlightHub> hubContext, ILogger<NotificationService> logger)
 {
-    public async Task NotifyAiTrace(string correlationId, string agent, string step, string content)
+    public async Task NotifyAiTrace(string correlationId, string agent, string step, string content, double? duration = null)
     {
         try
         {
-            logger.LogInformation("[{CorrelationId}] [SignalR] Broadcasting TRACE for {Agent}: {Step}", correlationId, agent, step);
-            await hubContext.Clients.All.SendAsync("ReceiveAiTrace", correlationId, agent, step, content);
+            logger.LogInformation("[{CorrelationId}] [SignalR] Broadcasting TRACE for {Agent}: {Step} (Duration: {Duration})", correlationId, agent, step, duration);
+            await hubContext.Clients.All.SendAsync("ReceiveAiTrace", correlationId, agent, step, content, duration);
         }
         catch (Exception ex)
         {

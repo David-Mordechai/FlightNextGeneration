@@ -36,7 +36,7 @@ public class NotificationService : IAsyncDisposable
         }
     }
 
-    public async Task NotifyAsync(string correlationId, string agent, string step, string content)
+    public async Task NotifyAsync(string correlationId, string agent, string step, string content, double? duration = null)
     {
         if (_connection.State != HubConnectionState.Connected)
         {
@@ -46,8 +46,8 @@ public class NotificationService : IAsyncDisposable
 
         try
         {
-            _logger.LogInformation("[{CorrelationId}] Sending trace to Hub: {Agent} ({Step})", correlationId, agent, step);
-            await _connection.InvokeAsync("SendTraceFromAgent", correlationId, agent, step, content);
+            _logger.LogInformation("[{CorrelationId}] Sending trace to Hub: {Agent} ({Step}) Duration: {Duration}", correlationId, agent, step, duration);
+            await _connection.InvokeAsync("SendTraceFromAgent", correlationId, agent, step, content, duration);
         }
         catch (Exception ex)
         {

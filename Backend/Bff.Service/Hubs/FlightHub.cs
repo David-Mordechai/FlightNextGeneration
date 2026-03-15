@@ -33,9 +33,9 @@ public class FlightHub(AiChatService aiChatService, ILogger<FlightHub> logger, I
     }
 
     // New method for agents to send traces to the BFF Hub
-    public async Task SendTraceFromAgent(string correlationId, string agent, string step, string content)
+    public async Task SendTraceFromAgent(string correlationId, string agent, string step, string content, double? duration = null)
     {
-        Console.WriteLine($"[FlightHub] SendTraceFromAgent: {correlationId}, {agent}, {step}");
-        await NotificationService.NotifyAiTrace(correlationId, agent, step, content);
+        Console.WriteLine($"[FlightHub] SendTraceFromAgent: {correlationId}, {agent}, {step}, Duration: {duration}");
+        await NotificationService.NotifyAiTrace(correlationId, agent, step, content, duration);
     }
 }

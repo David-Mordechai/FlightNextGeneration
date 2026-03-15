@@ -22,7 +22,12 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools, No
         history.AddUserMessage(message);
 
         var settings = new OpenAIPromptExecutionSettings { FunctionChoiceBehavior = FunctionChoiceBehavior.Auto(autoInvoke: false) };
+        
+        var swReasoning = System.Diagnostics.Stopwatch.StartNew();
         var response = await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
+        swReasoning.Stop();
+
+        await notifier.NotifyAsync(correlationId, "Payload", "Thinking", "Processing gimbal/sensor commands.", swReasoning.Elapsed.TotalSeconds);
         
         var toolCalls = response.Items.OfType<FunctionCallContent>().ToList();
         var executedActions = new List<string>();
@@ -40,15 +45,18 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools, No
             {
                 try 
                 {
-                    await notifier.NotifyAsync(correlationId, "Payload", "Action", $"Executing tool: {funcName}");
+                    var argsJson = System.Text.Json.JsonSerializer.Serialize(call.Arguments);
+                    await notifier.NotifyAsync(correlationId, "Payload", "Action", $"Executing tool: {funcName} with args: {argsJson}");
                     
+                    var swTool = System.Diagnostics.Stopwatch.StartNew();
                     var result = await call.InvokeAsync(kernel);
+                    swTool.Stop();
                     
                     var resultStr = "";
                     if (result is FunctionResultContent frc) resultStr = frc.Result?.ToString() ?? "";
                     else resultStr = result.ToString() ?? "";
                     
-                    await notifier.NotifyAsync(correlationId, "Payload", "Result", resultStr);
+                    await notifier.NotifyAsync(correlationId, "Payload", "Result", resultStr, swTool.Elapsed.TotalSeconds);
                     executedActions.Add(resultStr);
                 }
                 catch (Exception ex)

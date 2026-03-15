@@ -27,10 +27,13 @@ public class RouterAgent(IChatCompletionService chatSvc, NotificationService not
         history.AddUserMessage(message);
 
         var settings = new OpenAIPromptExecutionSettings { MaxTokens = 50 };
+        var stopwatch = System.Diagnostics.Stopwatch.StartNew();
         var response = await chatSvc.GetChatMessageContentAsync(history, settings);
+        stopwatch.Stop();
+
         var content = response.Content?.Trim() ?? "";
         
-        await notifier.NotifyAsync(correlationId, "Router", "Classification", $"Determined domains: {content}");
+        await notifier.NotifyAsync(correlationId, "Router", "Classification", $"Determined domains: {content}", stopwatch.Elapsed.TotalSeconds);
 
         var targets = new List<string>();
         if (content.Contains("[") && content.Contains("]"))
