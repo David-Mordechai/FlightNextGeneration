@@ -104,6 +104,7 @@ onMounted(async () => {
 
         const viewerInstance = new Cesium.Viewer(mapContainer.value, {
           terrainProvider: terrainProvider,
+          baseLayer: false, // Prevent default Ion imagery
           animation: false,
           baseLayerPicker: false,
           fullscreenButton: false,

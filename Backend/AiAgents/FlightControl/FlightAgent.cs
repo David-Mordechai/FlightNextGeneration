@@ -20,18 +20,17 @@ public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools, Noti
         history.AddSystemMessage("# ROLE\n" +
                                "You are the UAV Flight Control Agent.\n\n" +
                                "# TASK\n" +
-                               "Extract and execute ALL flight commands from the user message.\n\n" +
-                               "# TOOLS TO CALL\n" +
-                               "1. If user explicitly wants to FLY/MOVE to a destination -> Call 'NavigateTo(location=\"NAME\")'.\n" +
-                               "2. If user mentions speed -> Call 'ChangeSpeed(speed=VALUE)'.\n" +
-                               "3. If user mentions altitude -> Call 'ChangeAltitude(altitude=VALUE)'.\n\n" +
-                               "# MULTI-TOOL EXTRACTION (CRITICAL)\n" +
-                               "The user will often provide multiple parameters at once. You MUST scan the entire request and call EVERY tool that applies.\n" +
-                               "Example: 'fly to Target A, speed 500, alt 5000' -> Call NavigateTo, ChangeSpeed, and ChangeAltitude.\n\n" +
-                               "# CRITICAL RULES\n" +
-                               "- DO NOT call 'NavigateTo' just because a location (like 'Home') is mentioned. Only call it if the user wants to MOVE there.\n" +
-                               "- If the user says 'point camera at Home', DO NOT call 'NavigateTo'. That is a payload command, not a flight command.\n" +
-                               "- If the user provides multiple flight commands, you MUST call multiple tools in a single response.");
+                               "Extract and execute ALL flight commands. You MUST call ALL relevant tools.\n\n" +
+                               "# TOOLS AND ARGUMENTS\n" +
+                               "1. NavigateTo(location: string) - Use for 'fly to', 'go to'. Example: NavigateTo(location=\"Target\").\n" +
+                               "2. ChangeSpeed(speed: int) - Use for 'speed 500', 'set speed to 100'. Example: ChangeSpeed(speed=500).\n" +
+                               "3. ChangeAltitude(altitude: int) - Use for 'altitude 5000', 'alt 2000'. Example: ChangeAltitude(altitude=5000).\n\n" +
+                               "# CRITICAL\n" +
+                               "- You MUST extract the number for speed and altitude. Do NOT leave them empty.\n" +
+                               "- If the user says 'speed 500', call ChangeSpeed(speed=500).\n" +
+                               "- If the user says 'altitude 5000', call ChangeAltitude(altitude=5000).\n" +
+                               "- If the user says 'fly to target', call NavigateTo(location=\"target\").\n" +
+                               "- DO NOT call NavigateTo for camera commands.");
         
         history.AddUserMessage(message);
 
@@ -51,6 +50,9 @@ public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools, Noti
             var response = await chatSvc.GetChatMessageContentAsync(history, settings, kernel);
             swReasoning.Stop();
             
+            var content = response.Content ?? "";
+            Console.WriteLine($"[FlightControl] Raw Response: {content}");
+
             var toolCalls = response.Items.OfType<FunctionCallContent>().ToList();
             if (toolCalls.Count == 0) break;
 
@@ -77,6 +79,7 @@ public class FlightAgent(IChatCompletionService chatSvc, FlightTools tools, Noti
                         await notifier.NotifyAsync(correlationId, "FlightControl", "Thinking", $"Extracted tool: {funcName}", swReasoning.Elapsed.TotalSeconds);
                         
                         var argsJson = System.Text.Json.JsonSerializer.Serialize(call.Arguments);
+                        Console.WriteLine($"[FlightControl] Executing tool: {funcName} with args: {argsJson}");
                         await notifier.NotifyAsync(correlationId, "FlightControl", "Action", $"Executing tool: {funcName} with args: {argsJson}");
                         
                         var swTool = System.Diagnostics.Stopwatch.StartNew();

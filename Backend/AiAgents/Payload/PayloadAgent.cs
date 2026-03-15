@@ -20,6 +20,7 @@ public class PayloadAgent(IChatCompletionService chatSvc, PayloadTools tools, No
                                "The user may provide multiple instructions in a single request. You MUST call ALL relevant tools in one response.\n\n" +
                                "# INSTRUCTIONS\n" +
                                "INSTRUCTION: Call PointPayload ONLY for exact location names (e.g. 'Target A', 'Home').\n" +
+                               "CRITICAL: Do NOT include conjunctions like 'and' or 'then' in the location name. If the user says 'look at Target and set speed', use 'Target'.\n" +
                                "CRITICAL: Do not truncate names. If the user says 'target a', use 'Target A'.\n" +
                                "CRITICAL: If a tool returns an error, report that error to the user.");
         history.AddUserMessage(message);

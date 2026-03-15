@@ -15,9 +15,11 @@ public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools, No
 
         var history = new ChatHistory();
         history.AddSystemMessage("You are the Mission Control Agent. Available Tools: [CreatePoint, ListPoints, DeletePointByName, CreateRectangleZone, CreatePolygonZone, ListNoFlyZones, DeleteNoFlyZoneByName, DeleteAllPoints, DeleteAllNoFlyZones].\n" +
+                               "CRITICAL: Only call 'CreatePoint' if the user EXPLICITLY asks to ADD, CREATE, SET UP, or MARK a new point (e.g., 'add a target').\n" +
+                               "CRITICAL: If the user just mentions a destination to fly to (e.g. 'fly to target'), DO NOT CREATE a point. That is not your responsibility.\n" +
                                "RULE: Resolve descriptive names (e.g. 'the test entity') to exact stored names (e.g. 'test') before calling tools.\n" +
                                "RULE: You MUST use the available tools to perform actions based on the user's intent.\n" +
-                               "RULE: If the user intent is NOT about points or no-fly zones, DO NOT call any tools and return an empty string.\n" +
+                               "RULE: If the user intent is NOT about MANAGING points or no-fly zones, DO NOT call any tools and return an empty string.\n" +
                                "RESPONSE RULE: Return ONLY a technical confirmation string after calling a tool. If no tool is called, return an empty string.");
         history.AddUserMessage(message);
 
@@ -39,6 +41,13 @@ public class MissionAgent(IChatCompletionService chatSvc, MissionTools tools, No
             {
                 var name = call.FunctionName;
                 if (name.Contains("-")) name = name.Split('-').Last();
+
+                // Safety Guard: Prevent accidental CreatePoint if no explicit keywords are present
+                if (name == "CreatePoint" && !System.Text.RegularExpressions.Regex.IsMatch(message, @"add|create|mark|new|set up", System.Text.RegularExpressions.RegexOptions.IgnoreCase))
+                {
+                    await notifier.NotifyAsync(correlationId, "MissionControl", "Guard", "Blocked unintentional CreatePoint call.");
+                    continue;
+                }
 
                 try 
                 {

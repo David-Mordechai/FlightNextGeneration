@@ -16,18 +16,19 @@ public class RouterAgent(IChatCompletionService chatSvc, NotificationService not
         history.AddSystemMessage("# MISSION\n" +
                                "Identify required tactical domains. Return ONLY a JSON array.\n\n" +
                                "# VALID DOMAINS\n" +
-                               "- FlightControl (UAV MOVEMENT, speed, altitude)\n" +
-                               "- Payload (CAMERA and sensors, GIMBAL control)\n" +
-                               "- MissionControl (Adding or removing points/zones)\n\n" +
+                               "- FlightControl (UAV MOVEMENT, speed, altitude, 'fly to', 'go to', 'return home')\n" +
+                               "- Payload (CAMERA and sensors, GIMBAL control, 'look at', 'point camera', 'sensor lock')\n" +
+                               "- MissionControl (ONLY for MANAGING points/zones: 'add point', 'create target', 'delete zone', 'clear map')\n\n" +
                                "# EXAMPLES\n" +
-                               "User: fly home. Result: [\"FlightControl\"]\n" +
+                               "User: fly to target. Result: [\"FlightControl\"]\n" +
                                "User: point camera A. Result: [\"Payload\"]\n" +
                                "User: fly home and look at Target. Result: [\"FlightControl\", \"Payload\"]\n" +
-                               "User: look at Target. Result: [\"Payload\"]\n\n" +
+                               "User: create a new target at the center. Result: [\"MissionControl\"]\n\n" +
                                "# RULES\n" +
-                               "- Use 'FlightControl' ONLY if the UAV itself needs to MOVE.\n" +
-                               "- Use 'Payload' if the CAMERA needs to turn or look at something.\n" +
-                               "- Use ONLY the valid domains listed above.\n" +
+                               "- Use 'FlightControl' if the UAV needs to CHANGE POSITION, SPEED, or ALTITUDE.\n" +
+                               "- Use 'Payload' if the CAMERA needs to turn or look at a location.\n" +
+                               "- Use 'MissionControl' ONLY if the user wants to ADD, REMOVE, or MODIFY points or zones on the map.\n" +
+                               "- If the user says 'fly to target', DO NOT use MissionControl. That is navigation.\n" +
                                "- Output the JSON array and STOP.");
         
         history.AddUserMessage(message);
