@@ -32,7 +32,14 @@ public class PayloadTools
     {
         try
         {
-            var targetCoords = await _geocodingService.GetCoordinatesAsync(location);
+            (double Lat, double Lng, double Alt)? targetCoords = null;
+            for (int i = 0; i < 5; i++)
+            {
+                targetCoords = await _geocodingService.GetCoordinatesAsync(location);
+                if (targetCoords.HasValue) break;
+                _logger.LogInformation("Coordinates for '{Location}' not found yet. Retrying in 1s... (Attempt {Attempt}/5)", location, i + 1);
+                await Task.Delay(1000);
+            }
             if (!targetCoords.HasValue) return $"Could not find coordinates for {location}.";
 
             var json = JsonSerializer.Serialize(new

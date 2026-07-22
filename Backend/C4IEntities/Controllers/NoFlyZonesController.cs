@@ -33,6 +33,36 @@ public class NoFlyZonesController(C4IDbContext context) : ControllerBase
         return CreatedAtAction(nameof(GetNoFlyZones), new { id = noFlyZone.Id }, noFlyZone);
     }
 
+    [HttpPost("rectangle")]
+    public async Task<ActionResult<NoFlyZone>> CreateRectangleZone(RectangleZoneDto dto)
+    {
+        var factory = new NetTopologySuite.Geometries.GeometryFactory(new NetTopologySuite.Geometries.PrecisionModel(), 4326);
+        var coordinates = new[]
+        {
+            new NetTopologySuite.Geometries.Coordinate(dto.MinLng, dto.MinLat),
+            new NetTopologySuite.Geometries.Coordinate(dto.MinLng, dto.MaxLat),
+            new NetTopologySuite.Geometries.Coordinate(dto.MaxLng, dto.MaxLat),
+            new NetTopologySuite.Geometries.Coordinate(dto.MaxLng, dto.MinLat),
+            new NetTopologySuite.Geometries.Coordinate(dto.MinLng, dto.MinLat)
+        };
+        var polygon = factory.CreatePolygon(coordinates);
+
+        var noFlyZone = new NoFlyZone
+        {
+            Id = Guid.NewGuid(),
+            Name = dto.Name,
+            Geometry = polygon,
+            MinAltitude = dto.MinAltitude,
+            MaxAltitude = dto.MaxAltitude,
+            IsActive = dto.IsActive
+        };
+
+        context.NoFlyZones.Add(noFlyZone);
+        await context.SaveChangesAsync();
+
+        return CreatedAtAction(nameof(GetNoFlyZones), new { id = noFlyZone.Id }, noFlyZone);
+    }
+
     [HttpPut("{id}")]
     public async Task<IActionResult> UpdateNoFlyZone(Guid id, NoFlyZone noFlyZone)
     {
@@ -95,4 +125,16 @@ public class NoFlyZonesController(C4IDbContext context) : ControllerBase
 
         return NoContent();
     }
+}
+
+public class RectangleZoneDto
+{
+    public string Name { get; set; } = string.Empty;
+    public double MinLat { get; set; }
+    public double MinLng { get; set; }
+    public double MaxLat { get; set; }
+    public double MaxLng { get; set; }
+    public double MinAltitude { get; set; }
+    public double MaxAltitude { get; set; }
+    public bool IsActive { get; set; } = true;
 }

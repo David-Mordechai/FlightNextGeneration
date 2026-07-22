@@ -109,6 +109,14 @@ public class MissionController(FlightStateService flightState, IHubContext<Fligh
         
         return Ok(new { Message = "Executing flight plan." });
     }
+
+    [HttpPost("reset")]
+    public IActionResult ResetMission()
+    {
+        // Default Home coordinates: Lat = 31.845500452679573, Lng = 34.64432698301707
+        flightState.ResetPosition(31.845500452679573, 34.64432698301707);
+        return Ok(new { Message = "UAV successfully reset to Home position." });
+    }
 }
 
 public class GeoPoint

@@ -53,30 +53,41 @@ export function useVoiceComms() {
     if (!text) return;
     
     isSpeaking.value = true;
-    
-    setTimeout(() => { attemptSpeak(text, true); }, 50); 
+
+    // Primary: backend (Google) TTS. Fallback: browser speech synthesis.
+    setTimeout(async () => {
+        const played = await playCloudTTS(text);
+        if (played) {
+            isSpeaking.value = false;
+            processQueue();
+        } else {
+            attemptSpeak(text, true);
+        }
+    }, 50);
   };
 
+      // Fallback path: browser speech synthesis (cloud TTS is the primary).
       const attemptSpeak = (text: string, allowRetry: boolean) => {
         if (!synth) {
-            playCloudTTS(text);
+            playDataBurst();
             return;
         }
-        const utterance = new SpeechSynthesisUtterance(text);    if (voice.value) {
+        const utterance = new SpeechSynthesisUtterance(text);
+    if (voice.value) {
         utterance.voice = voice.value;
-        utterance.pitch = 0.9; 
-        utterance.rate = 1.3; 
+        utterance.pitch = 0.9;
+        utterance.rate = 1.3;
     } else {
         utterance.pitch = 1.0;
-        utterance.rate = 1.3; 
+        utterance.rate = 1.3;
     }
     utterance.volume = 1.0;
     utterance.onend = () => { isSpeaking.value = false; processQueue(); };
     utterance.onerror = (e) => {
-        if (!isSpeaking.value) return; 
+        if (!isSpeaking.value) return;
 
         if (e.error === 'synthesis-failed' || e.error === 'voice-unavailable') {
-             playCloudTTS(text);
+             playDataBurst();
              return;
         }
         console.warn('Voice: Speech error:', e);
@@ -85,49 +96,50 @@ export function useVoiceComms() {
             attemptSpeak(text, false);
             return;
         }
-        playCloudTTS(text);
+        playDataBurst();
     };
-    try { 
+    try {
         isSpeaking.value = true;
-        synth.speak(utterance); 
-    } catch (err) { 
-        isSpeaking.value = false; 
-        playCloudTTS(text); 
+        synth.speak(utterance);
+    } catch (err) {
+        playDataBurst();
     }
   };
 
-      const playCloudTTS = async (text: string): Promise<void> => {
+      // Primary voice: backend (Google) TTS.
+      // Resolves true when playback completed, false when it could not play
+      // (caller decides the fallback).
+      let currentCloudAudio: HTMLAudioElement | null = null;
+      const playCloudTTS = (text: string): Promise<boolean> => {
         return new Promise((resolve) => {
           const a = document.createElement('audio');
           if (a.canPlayType('audio/mpeg') === '') {
-              playDataBurst();
-              resolve();
+              resolve(false);
               return;
           }
           try {
               const safeText = encodeURIComponent(text.substring(0, 200));
               const url = `http://localhost:5135/api/tts?text=${safeText}`;
               const audio = new Audio(url);
-              audio.playbackRate = 1.3; 
+              audio.playbackRate = 1.3;
               audio.volume = 1.0;
-              audio.onended = () => { 
-                  isSpeaking.value = false; 
-                  processQueue(); 
-                  resolve();
+              audio.onended = () => {
+                  currentCloudAudio = null;
+                  resolve(true);
               };
-              audio.onerror = () => { 
-                  playDataBurst(); 
-                  resolve();
+              audio.onerror = () => {
+                  currentCloudAudio = null;
+                  resolve(false);
               };
-              isSpeaking.value = true;
+              currentCloudAudio = audio;
               audio.play().catch((err) => {
                   console.warn('Voice: Cloud TTS play failed:', err);
-                  playDataBurst();
-                  resolve();
+                  currentCloudAudio = null;
+                  resolve(false);
               });
           } catch (e) {
-              playDataBurst();
-              resolve();
+              currentCloudAudio = null;
+              resolve(false);
           }
         });
       };
@@ -188,7 +200,16 @@ export function useVoiceComms() {
 
   const toggleMute = () => {
     isMuted.value = !isMuted.value;
-    if (isMuted.value && synth) { synth.cancel(); messageQueue.length = 0; }
+    if (isMuted.value) {
+      if (synth) synth.cancel();
+      messageQueue.length = 0;
+      if (currentCloudAudio) {
+        const audio = currentCloudAudio;
+        audio.pause();
+        // Fire 'ended' so the pending playCloudTTS promise resolves and state resets.
+        audio.dispatchEvent(new Event('ended'));
+      }
+    }
   };
 
   const speakImmediate = (text: string, maxWait?: number): Promise<void> => {
@@ -208,9 +229,9 @@ export function useVoiceComms() {
               }
           };
 
-          const doSpeak = () => {
+          const speakViaBrowser = () => {
               if (!synth) {
-                  playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
+                  safeResolve();
                   return;
               }
               const utterance = new SpeechSynthesisUtterance(text);
@@ -219,9 +240,9 @@ export function useVoiceComms() {
                   utterance.pitch = 0.9;
                   utterance.rate = 1.3;
               }
-              
+
               utterance.onend = () => safeResolve();
-              
+
                               utterance.onerror = (e) => {
                                   if (e.error === 'interrupted') {
                                       safeResolve();
@@ -238,35 +259,33 @@ export function useVoiceComms() {
                                       safeResolve();
                                       return;
                                   }
-                                  
-                                  // Expected errors that trigger fallback - no warning needed
-                                  if (e.error === 'synthesis-failed' || e.error === 'voice-unavailable') {
-                                      playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
-                                      return;
-                                  }
 
-                                  console.warn('Voice: Speech error in speakImmediate:', e);
-                                  // Fallback to backend TTS
-                                  playCloudTTS(text).then(() => safeResolve()).catch(() => safeResolve());
+                                  if (e.error !== 'synthesis-failed' && e.error !== 'voice-unavailable') {
+                                      console.warn('Voice: Speech error in speakImmediate:', e);
+                                  }
+                                  safeResolve();
                               };
               try {
                   synth.speak(utterance);
-                  if (maxWait) {
-                      setTimeout(safeResolve, maxWait);
-                  }
               } catch (e) {
                   safeResolve();
               }
           };
 
-          if (!voice.value && synth.getVoices().length === 0) {
-              setTimeout(() => {
-                  initVoice(); 
-                  doSpeak();
-              }, 500);
-          } else {
-              doSpeak();
-          }
+          // Primary: backend (Google) TTS; browser synthesis only if it fails.
+          const doSpeak = async () => {
+              if (maxWait) {
+                  setTimeout(safeResolve, maxWait);
+              }
+              const played = await playCloudTTS(text);
+              if (played) {
+                  safeResolve();
+              } else {
+                  speakViaBrowser();
+              }
+          };
+
+          doSpeak();
       });
   };
 
@@ -477,5 +496,52 @@ export function useVoiceComms() {
     }
   };
 
-  return { isMuted, isSpeaking, voiceStatus, toggleMute, speak, speakImmediate, playBeep, isRecording: computed(() => recordingState.value !== 'idle'), startRecording, stopRecording, transcribe };
+  const speakAsCommander = (text: string): Promise<void> => {
+    return new Promise((resolve) => {
+      if (isMuted.value) {
+        resolve();
+        return;
+      }
+      if (!synth) {
+        resolve();
+        return;
+      }
+      
+      if (synth.speaking) {
+        synth.cancel();
+      }
+
+      const utterance = new SpeechSynthesisUtterance(text);
+      const voices = synth.getVoices();
+      const englishVoices = voices.filter(v => v.lang.startsWith('en'));
+      
+      // Try to find a distinct male/non-default voice for the Commander
+      const agentVoiceName = voice.value?.name || '';
+      const commanderVoice = englishVoices.find(v => (v.name.toLowerCase().includes('mark') || v.name.toLowerCase().includes('george') || v.name.toLowerCase().includes('male')) && v.name !== agentVoiceName) ||
+                             englishVoices.find(v => v.name !== agentVoiceName) ||
+                             voices[0];
+
+      if (commanderVoice) {
+        utterance.voice = commanderVoice;
+        utterance.pitch = 0.82; // Deep authoritative male pitch!
+        utterance.rate = 0.95; // Slightly slower, commanding speed
+        console.log(`Voice: Commander using male voice '${commanderVoice.name}'`);
+      } else {
+        utterance.pitch = 0.8; // Fallback pitch shift
+        utterance.rate = 0.95;
+      }
+
+      utterance.onend = () => {
+        resolve();
+      };
+      utterance.onerror = (err) => {
+        console.warn('Voice: Commander speech error/interrupted:', err);
+        resolve();
+      };
+
+      synth.speak(utterance);
+    });
+  };
+
+  return { isMuted, isSpeaking, voiceStatus, toggleMute, speak, speakImmediate, playBeep, isRecording: computed(() => recordingState.value !== 'idle'), startRecording, stopRecording, transcribe, speakAsCommander };
 }

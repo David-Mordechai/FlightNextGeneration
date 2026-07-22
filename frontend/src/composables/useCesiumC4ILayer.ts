@@ -609,16 +609,28 @@ export function useCesiumC4ILayer(viewer: ShallowRef<Cesium.Viewer | null>) {
     const initializeRealtimeUpdates = () => {
         signalRService.onEntityUpdate((update) => {
             if (update.entityType === 'Point') {
-                if (update.changeType === 'Created') createPointEntity(update.data);
-                else if (update.changeType === 'Deleted') {
+                if (update.changeType === 'Created') {
                     const id = update.data.id || update.data.Id;
+                    if (!points.value.some(p => p.id === id)) {
+                        points.value.push(update.data);
+                    }
+                    createPointEntity(update.data);
+                } else if (update.changeType === 'Deleted') {
+                    const id = update.data.id || update.data.Id;
+                    points.value = points.value.filter(p => (p.id || (p as any).Id) !== id);
                     const entity = entityMap.get(id);
                     if (entity) { viewer.value?.entities.remove(entity); entityMap.delete(id); unregisterLabel(id); }
                 }
             } else if (update.entityType === 'NoFlyZone') {
-                if (update.changeType === 'Created') createZoneEntity(update.data);
-                else if (update.changeType === 'Deleted') {
+                if (update.changeType === 'Created') {
                     const id = update.data.id || update.data.Id;
+                    if (!zones.value.some(z => z.id === id)) {
+                        zones.value.push(update.data);
+                    }
+                    createZoneEntity(update.data);
+                } else if (update.changeType === 'Deleted') {
+                    const id = update.data.id || update.data.Id;
+                    zones.value = zones.value.filter(z => (z.id || (z as any).Id) !== id);
                     const entity = entityMap.get(id);
                     if (entity) { viewer.value?.entities.remove(entity); entityMap.delete(id); unregisterLabel(id); }
                 }

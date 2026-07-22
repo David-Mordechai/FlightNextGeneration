@@ -9,12 +9,12 @@ public enum FlightMode
 public class FlightStateService
 {
     // Current UAV Position
-    public double CurrentLat { get; private set; } = 31.801447;
-    public double CurrentLng { get; private set; } = 34.643497;
+    public double CurrentLat { get; private set; } = 31.845500452679573;
+    public double CurrentLng { get; private set; } = 34.64432698301707;
     
     // Target Orbit Center
-    public double TargetLat { get; private set; } = 31.801447;
-    public double TargetLng { get; private set; } = 34.643497;
+    public double TargetLat { get; private set; } = 31.845500452679573;
+    public double TargetLng { get; private set; } = 34.64432698301707;
 
     private FlightMode Mode { get; set; } = FlightMode.Orbiting;
     
@@ -32,7 +32,7 @@ public class FlightStateService
     // Payload (Camera Gimbal) State
     public double PayloadPitch { get; private set; } = -45; // Degrees (down)
     public double PayloadYaw { get; private set; } = 0;    // Degrees (relative to North)
-    private (double Lat, double Lng, double Alt)? PayloadLockLocation { get; set; }
+    private (double Lat, double Lng, double Alt)? PayloadLockLocation { get; set; } = (31.845500452679573, 34.64432698301707, 0);
 
     // Current internal telemetry (for smoothing)
     public double CurrentSpeedKts { get; private set; } = 105;
@@ -252,5 +252,22 @@ public class FlightStateService
             }
             Waypoints = updatedWaypoints;
         }
+    }
+
+    public void ResetPosition(double lat, double lng, double alt = 4000)
+    {
+        CurrentLat = lat;
+        CurrentLng = lng;
+        TargetLat = lat;
+        TargetLng = lng;
+        CurrentAltitudeFt = alt;
+        TargetAltitudeFt = alt;
+        CurrentSpeedKts = 105;
+        TargetSpeedKts = 105;
+        Waypoints.Clear();
+        Mode = FlightMode.Orbiting;
+        PayloadLockLocation = (lat, lng, 0);
+        PayloadPitch = -45;
+        PayloadYaw = 0;
     }
 }
